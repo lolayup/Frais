@@ -1,0 +1,40 @@
+/.gradle/
+/.idea/
+/build/
+/local.properties
+/signing.properties
+/.artifacts/
+/.kotlin/
+*.iml
+*.jks
+*.keystore
+
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio
+.idea/
+*.iml
+
+# Local configuration
+local.properties
+
+# APKs
+*.apk
+*.aab
+
+# Signing keys
+*.jks
+*.keystore
+
+# Generated files
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-sdk tools:overrideLibrary="rikka.shizuku.api, com.rosan.dhizuku.api"/>
+
+    <uses-permission
+            android:name="com.android.launcher.permission.INSTALL_SHORTCUT"
+            android:maxSdkVersion="25"/>
+    <!--    <uses-permission android:name="android.permission.INTERNET"/>-->
+    <uses-permission
+            android:name="android.permission.QUERY_ALL_PACKAGES"
+            tools:ignore="QueryAllPackagesPermission"/>
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission
+            android:name="android.permission.PACKAGE_USAGE_STATS"
+            tools:ignore="ProtectedPermissions"/>
+    <uses-permission
+            android:name="android.permission.FORCE_STOP_PACKAGES"
+            tools:ignore="ProtectedPermissions"/>
+    <uses-permission
+            android:name="android.permission.CHANGE_COMPONENT_ENABLED_STATE"
+            tools:ignore="ProtectedPermissions"/>
+    <uses-permission
+            android:name="android.permission.MANAGE_APP_OPS_MODES"
+            tools:ignore="ProtectedPermissions"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.BIND_APPWIDGET" tools:ignore="ProtectedPermissions"/>
+    <uses-permission android:name="com.oasisfeng.island.permission.FREEZE_PACKAGE"/>
+    <uses-permission android:name="com.oasisfeng.island.permission.SUSPEND_PACKAGE"/>
+
+    <application
+            android:name=".FraisApp"
+            android:allowBackup="true"
+            android:enableOnBackInvokedCallback="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            android:supportsRtl="true"
+            android:theme="@style/Theme.Frais"
+            tools:targetApi="tiramisu">
+        <activity
+                android:name=".ui.main.MainActivity"
+                android:exported="true"
+                android:launchMode="singleTask">
+        </activity>
+
+        <activity-alias
+                android:name=".ui.main.MainActivitySleep"
+                android:enabled="true"
+                android:exported="true"
+                android:icon="@mipmap/ic_launcher_sleep"
+                android:label="@string/app_name"
+                android:targetActivity=".ui.main.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST"/>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+                android:name=".ui.main.MainActivityAwake"
+                android:enabled="false"
+                android:exported="true"
+                android:icon="@mipmap/ic_launcher_awake"
+                android:label="@string/app_name"
+                android:targetActivity=".ui.main.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+                android:name=".ui.main.MainActivitySecured"
+                android:enabled="false"
+                android:exported="true"
+                android:icon="@mipmap/ic_launcher_secured"
+                android:label="@string/app_name"
+                android:targetActivity=".ui.main.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity
+                android:name=".ui.api.ApiActivity"
+                android:excludeFromRecents="true"
+                android:exported="true"
+                android:launchMode="singleInstance"
+                android:theme="@style/Theme.Frais.Translucent">
+            <intent-filter>
+                <action android:name="android.intent.action.SHOW_APP_INFO"/>
+                <action android:name="${applicationId}.action.LAUNCH"/>
+                <action android:name="${applicationId}.action.FREEZE"/>
+                <action android:name="${applicationId}.action.UNFREEZE"/>
+                <action android:name="${applicationId}.action.FREEZE_CATEGORY"/>
+                <action android:name="${applicationId}.action.UNFREEZE_CATEGORY"/>
+                <action android:name="${applicationId}.action.FREEZE_ALL"/>
+                <action android:name="${applicationId}.action.UNFREEZE_ALL"/>
+                <action android:name="${applicationId}.action.FREEZE_NON_WHITELISTED"/>
+                <action android:name="${applicationId}.action.FREEZE_AUTO"/>
+                <action android:name="${applicationId}.action.LOCK"/>
+                <action android:name="${applicationId}.action.LOCK_FREEZE"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="frais"/>
+            </intent-filter>
+        </activity>
+
+        <provider
+                android:name="rikka.shizuku.ShizukuProvider"
+                android:authorities="com.khaled.frais.shizuku"
+                android:exported="true"
+                android:multiprocess="false"/>
+
+        <service
+                android:name=".services.QSTileService"
+                android:exported="true"
+                android:icon="@drawable/ic_round_frozen"
+                android:label="@string/tile_action"
+                android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+        </service>
+
+        <provider
+                android:name="androidx.core.content.FileProvider"
+                android:authorities="${applicationId}.fileprovider"
+                android:exported="false"
+                android:grantUriPermissions="true">
+            <meta-data
+                    android:name="android.support.FILE_PROVIDER_PATHS"
+                    android:resource="@xml/file_paths"/>
+        </provider>
+
+        <receiver android:name=".receivers.FreezeReceiver" android:exported="false"/>
+    </application>
+
+</manifest>
