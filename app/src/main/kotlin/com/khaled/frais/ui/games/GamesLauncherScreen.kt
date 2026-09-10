@@ -38,8 +38,9 @@ import com.khaled.frais.app.AppInfo
 import com.khaled.frais.app.FraisData
 import com.khaled.frais.ui.components.*
 import com.khaled.frais.ui.theme.NothingRed
-import com.khaled.frais.ui.home.HomeViewModel
-import com.khaled.frais.ui.home.AppOptionsDialog
+import com.khaled.frais.ui.home.viewmodel.HomeViewModel
+import com.khaled.frais.ui.home.viewmodel.HomeUiState
+import com.khaled.frais.ui.home.components.AppOptionsDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.khaled.frais.utils.HPackages
@@ -172,6 +173,7 @@ fun GamesLauncherScreen(
     if (selectedGameForOptions != null) {
         AppOptionsDialog(
             app = selectedGameForOptions!!,
+            viewModel = homeViewModel,
             onDismiss = { selectedGameForOptions = null },
             onUpdate = { homeViewModel.updateFilteredApps() },
             onFreezeToggle = { app, frozen ->
@@ -206,7 +208,7 @@ fun SectionTitle(title: String) {
 }
 
 @Composable
-fun StatsDashboard(uiState: com.khaled.frais.ui.home.HomeUiState) {
+fun StatsDashboard(uiState: HomeUiState) {
     Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(

@@ -24,9 +24,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.khaled.frais.R
 import com.khaled.frais.app.AppInfo
 import com.khaled.frais.ui.components.*
-import com.khaled.frais.ui.home.AppItem
-import com.khaled.frais.ui.home.AppOptionsDialog
-import com.khaled.frais.ui.home.HomeViewModel
+import com.khaled.frais.ui.home.components.AppItem
+import com.khaled.frais.ui.home.components.AppOptionsDialog
+import com.khaled.frais.ui.home.viewmodel.HomeViewModel
 import com.khaled.frais.ui.theme.NothingRed
 import com.khaled.frais.utils.HUI
 import com.khaled.frais.utils.HPackages

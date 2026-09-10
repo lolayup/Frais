@@ -39,4 +39,22 @@ object HUI {
         ?.setPrimaryClip(ClipData.newPlainText(app.getString(R.string.app_name), text))
 
     fun pasteText(): String? = app.getSystemService<ClipboardManager>()?.primaryClip?.getItemAt(0)?.text?.toString()
+
+    fun formatDuration(durationMs: Long): String {
+        val seconds = durationMs / 1000
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        return if (hours > 0) {
+            "${hours}H ${minutes % 60}M"
+        } else {
+            "${minutes}M"
+        }
+    }
+
+    fun openHomeSettings() {
+        val intent = Intent(android.provider.Settings.ACTION_HOME_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        app.startActivity(intent)
+    }
 }

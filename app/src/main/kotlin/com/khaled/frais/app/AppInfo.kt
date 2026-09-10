@@ -97,6 +97,15 @@ class AppInfo(
         if (save) FraisData.saveApps()
     }
 
+    private var _hiddenFromHome by mutableStateOf(metadata.hiddenFromHome)
+    var hiddenFromHome: Boolean
+        get() = _hiddenFromHome
+        set(value) {
+            _hiddenFromHome = value
+            metadata.hiddenFromHome = value
+            FraisData.saveApps()
+        }
+
     private var _hideFromLauncher by mutableStateOf(metadata.hideFromLauncher)
     var hideFromLauncher: Boolean
         get() = _hideFromLauncher
@@ -149,6 +158,15 @@ class AppInfo(
             FraisData.saveApps()
         }
 
+    private var _preventNetwork by mutableStateOf(metadata.preventNetwork)
+    var preventNetwork: Boolean
+        get() = _preventNetwork
+        set(value) {
+            _preventNetwork = value
+            metadata.preventNetwork = value
+            FraisData.saveApps()
+        }
+
     val tagIds: List<Int>
         get() {
             val result = mutableListOf<Int>()
@@ -171,7 +189,6 @@ class AppInfo(
         
         // Specific categories have priority over generic ones
         val priority = listOf(
-            FraisData.TAG_ID_GAMES,
             FraisData.TAG_ID_SOCIAL,
             FraisData.TAG_ID_COMMUNICATION,
             FraisData.TAG_ID_PRODUCTIVITY,
@@ -185,9 +202,7 @@ class AppInfo(
             FraisData.TAG_ID_DEVELOPMENT,
             FraisData.TAG_ID_TRAVEL,
             FraisData.TAG_ID_HEALTH,
-            FraisData.TAG_ID_OTHER,
-            FraisData.TAG_ID_USER,
-            FraisData.TAG_ID_SYSTEM
+            FraisData.TAG_ID_OTHER
         )
         
         return priority.firstOrNull { it in candidates } ?: candidates.first()
@@ -216,6 +231,14 @@ class AppInfo(
         state = deriveState()
     }
 
+    companion object {
+        init {
+            System.loadLibrary("frais-engine")
+        }
+    }
+
+    private external fun nativeIsGame(packageName: String, category: Int, hasGameMetadata: Boolean): Boolean
+
     fun updateIsGame() {
         if (applicationInfo == null) {
             isGame = false
@@ -226,8 +249,6 @@ class AppInfo(
             applicationInfo.category
         } else -1
         
-        val systemSaysGame = systemCategory == ApplicationInfo.CATEGORY_GAME
-        
         val isSystemComponent = (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) || 
                                 (applicationInfo.packageName == "android") || 
                                 (applicationInfo.packageName.startsWith("com.android.systemui"))
@@ -236,32 +257,13 @@ class AppInfo(
             listOf("launcher", "home", "setupwizard").any { pkg.contains(it, ignoreCase = true) }
         }
         
-        // Extended detection
         val metaData = applicationInfo.metaData
-        val metaDataGame = metaData?.getBoolean("isGame") == true || 
-                           metaData?.getString("android.service.games") != null
+        val hasGameMetadata = metaData?.getBoolean("isGame") == true || 
+                             metaData?.getString("android.service.games") != null
         
-        val knownGamePrefixes = listOf(
-            "com.tencent.tmgp", "com.netease", "com.miHoYo", "com.supercell", 
-            "com.roblox", "com.mojang", "com.epicgames", "com.valvesoftware",
-            "com.activision", "com.ea.", "com.ubisoft", "com.square_enix",
-            "com.bandainamcoent", "com.nintendo", "com.sega", "com.gameloft",
-            "com.zynga", "com.kabam", "com.rovio", "com.playrix", "com.king",
-            "com.popcap.", "com.rockstargames.", "com.nianticlabs.", "com.garena.",
-            "com.playgendary.", "com.scopely.", "com.outfit7.", "com.miniclip.",
-            "com.voodoo.", "com.playrix.", "com.wildlife.", "com.tfgco."
-        )
-        val pkgPrefixGame = knownGamePrefixes.any { applicationInfo.packageName.startsWith(it) }
+        val systemSaysGame = nativeIsGame(packageName, systemCategory, hasGameMetadata)
 
-        val gameKeywords = listOf(
-            ".game", "game.", ".rpg", ".simulation", ".simulator", ".puzzle", 
-            ".arcade", ".racing", ".battle", ".sports", ".action", ".adventure",
-            ".strategy", ".casino", ".cards", ".trivia", ".board", ".word",
-            ".unity", ".godot", ".libgdx", ".unreal"
-        )
-        val pkgKeywordGame = gameKeywords.any { applicationInfo.packageName.contains(it, ignoreCase = true) }
-
-        isGame = (systemSaysGame || metaDataGame || pkgPrefixGame || pkgKeywordGame) && !isSystemComponent && !isLauncher
+        isGame = systemSaysGame && !isSystemComponent && !isLauncher
     }
 
     override fun equals(other: Any?): Boolean = other is AppInfo && other.packageName == packageName

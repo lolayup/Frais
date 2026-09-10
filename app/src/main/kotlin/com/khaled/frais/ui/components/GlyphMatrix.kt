@@ -19,6 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -1015,313 +1019,426 @@ fun GlyphLiveWidget(
      */
     val displayLabel = currentFilter?.uppercase() ?: "ALL APPS"
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(
-                horizontal = 14.dp,
-                vertical = 8.dp
-            ),
-        verticalAlignment =
-            Alignment.CenterVertically
-    ) {
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 2 })
 
-        /*
-         * LARGE GLYPH
-         */
-        GlyphMatrix(
-            modifier = Modifier.size(76.dp),
-            pattern = currentPattern,
-            secondaryPattern =
-                if (
-                    (actionableAppsCount > 0 || actionablePrivateAppsCount > 0) &&
-                    state == GlyphState.IDLE
-                ) {
-                    GlyphEngine.Patterns.ALERT_DOT
-                } else {
-                    null
-                },
-            accentColor = accentColor,
-            secondaryColor = NothingRed,
-            isPulsing =
-                isLoading ||
-                        isFreezing,
-            lightningProgress =
-                lightningProgress.value
-        )
+    androidx.compose.foundation.pager.HorizontalPager(
+        state = pagerState,
+        modifier = modifier.fillMaxWidth()
+    ) { page ->
+        if (page == 0) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onClick() }
+                    .padding(
+                        horizontal = 14.dp,
+                        vertical = 8.dp
+                    ),
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
 
-        Spacer(
-            modifier = Modifier.width(14.dp)
-        )
-
-        /*
-         * INFORMATION AREA
-         */
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement =
-                Arrangement.Center
-        ) {
-
-            /*
-             * FILTER / STATE LABEL
-             */
-            Text(
-                text = when {
-
-                    state == GlyphState.SCANNING ->
-                        "SCANNING"
-
-                    state == GlyphState.FREEZING ->
-                        "OPTIMIZING"
-
-                    state == GlyphState.ADDING ->
-                        "PACKAGE LINKED"
-
-                    state == GlyphState.REMOVING ->
-                        "PACKAGE REMOVED"
-
-                    state == GlyphState.UNINSTALLING ->
-                        "UNINSTALLING"
-
-                    state == GlyphState.BACKUP ->
-                        "EXPORTING"
-
-                    state == GlyphState.RESTORE ->
-                        "IMPORTING"
-
-                    state == GlyphState.SUCCESS ->
-                        "COMPLETE"
-
-                    state == GlyphState.ERROR ->
-                        "FAILED"
-
-                    else ->
-                        displayLabel
-                },
-                color = if (state == GlyphState.SECURED_ACTIVE) {
-                    val infiniteTransition = rememberInfiniteTransition(label = "securedRed")
-                    val alpha by infiniteTransition.animateFloat(
-                        initialValue = 0.5f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(800),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "alpha"
-                    )
-                    NothingRed.copy(alpha = alpha)
-                } else {
-                    accentColor.copy(alpha = 0.78f)
-                },
-                fontSize = 12.sp,
-                fontWeight =
-                    FontWeight.Bold,
-                letterSpacing = 1.3.sp,
-                maxLines = 1,
-                overflow =
-                    TextOverflow.Ellipsis
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(1.dp)
-            )
-
-            /*
-             * LARGE APP COUNT
-             */
-            if (state == GlyphState.IDLE || state == GlyphState.SECURED_ACTIVE) {
-
-                Row(
-                    verticalAlignment =
-                        Alignment.CenterVertically
-                ) {
-
-                    Text(
-                        text =
-                            displayedCountValue.toString(),
-                        color =
-                            if (
-                                actionableAppsCount > 0 || state == GlyphState.SECURED_ACTIVE
-                            ) {
-                                NothingRed
-                            } else {
-                                Color.White
-                            },
-                        fontSize = 32.sp,
-                        fontWeight =
-                            FontWeight.ExtraBold,
-                        letterSpacing =
-                            (-1.4).sp,
-                        lineHeight = 34.sp
-                    )
-
-                    Spacer(
-                        modifier =
-                            Modifier.width(7.dp)
-                    )
-
-                    Text(
-                        text = (if (state == GlyphState.SECURED_ACTIVE) {
-                            "SECURED ACTIVE"
+                /*
+                 * LARGE GLYPH
+                 */
+                GlyphMatrix(
+                    modifier = Modifier.size(76.dp),
+                    pattern = currentPattern,
+                    secondaryPattern =
+                        if (
+                            (actionableAppsCount > 0 || actionablePrivateAppsCount > 0) &&
+                            state == GlyphState.IDLE
+                        ) {
+                            GlyphEngine.Patterns.ALERT_DOT
                         } else {
-                            subLabelText
-                        } + " • $totalFilterCount FILTERS").uppercase(),
-                        color = if (state == GlyphState.SECURED_ACTIVE) {
-                            NothingRed.copy(alpha = 0.7f)
-                        } else {
-                            Color.Gray.copy(
-                                alpha = 0.75f
-                            )
+                            null
                         },
-                        fontSize = 10.sp,
-                        fontWeight =
-                            FontWeight.Bold,
-                        letterSpacing = 1.1.sp
-                    )
-                }
-
-            } else {
-
-                Text(
-                    text = when {
-
-                        isFreezing ->
-                            "OPTIMIZING CORES"
-
-                        isLoading ->
-                            "INDEXING $appCount USER APPS"
-
-                        state == GlyphState.ADDING ->
-                            "DATA SYNCED"
-
-                        state == GlyphState.REMOVING ->
-                            "PACKAGE REMOVED"
-
-                        state == GlyphState.UNINSTALLING ->
-                            "PURGING DATA"
-
-                        state == GlyphState.BACKUP ->
-                            "EXPORTING DATA"
-
-                        state == GlyphState.RESTORE ->
-                            "IMPORTING DATA"
-
-                        state == GlyphState.SUCCESS ->
-                            "SYSTEM READY"
-
-                        state == GlyphState.ERROR ->
-                            "CHECK OPERATION"
-
-                        else ->
-                            "FRAIS"
-                    },
-                    color =
-                        Color.White.copy(
-                            alpha = 0.86f
-                        ),
-                    fontSize = 16.sp,
-                    fontWeight =
-                        FontWeight.Bold,
-                    maxLines = 1,
-                    overflow =
-                        TextOverflow.Ellipsis
+                    accentColor = accentColor,
+                    secondaryColor = NothingRed,
+                    isPulsing =
+                        isLoading ||
+                                isFreezing,
+                    lightningProgress =
+                        lightningProgress.value
                 )
-            }
-
-            /*
-             * BOTTOM STATUS / ACTIVE BADGE
-             */
-            if (state == GlyphState.IDLE) {
 
                 Spacer(
-                    modifier =
-                        Modifier.height(3.dp)
+                    modifier = Modifier.width(14.dp)
                 )
 
-                if (actionableAppsCount > 0) {
+                /*
+                 * INFORMATION AREA
+                 */
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement =
+                        Arrangement.Center
+                ) {
 
                     /*
-                     * ACTIVE APPS
-                     *
-                     * Instead of:
-                     * ● ACTIVE 03
-                     *
-                     * we make the status feel like
-                     * a small Nothing-style indicator.
+                     * FILTER / STATE LABEL
                      */
-                    Row(
-                        verticalAlignment =
-                            Alignment.CenterVertically
-                    ) {
-
-                        Text(
-                            text = "●",
-                            color = NothingRed,
-                            fontSize = 9.sp
-                        )
-
-                        Spacer(
-                            modifier =
-                                Modifier.width(5.dp)
-                        )
-
-                        Text(
-                            text = "ACTIVE",
-                            color =
-                                Color.White.copy(
-                                    alpha = 0.78f
-                                ),
-                            fontSize = 9.sp,
-                            fontWeight =
-                                FontWeight.Bold,
-                            letterSpacing = 1.2.sp
-                        )
-
-                        Spacer(
-                            modifier =
-                                Modifier.width(6.dp)
-                        )
-
-                        Text(
-                            text =
-                                actionableAppsCount
-                                    .toString()
-                                    .padStart(2, '0'),
-                            color = NothingRed,
-                            fontSize = 12.sp,
-                            fontWeight =
-                                FontWeight.ExtraBold,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-
-                } else {
-
                     Text(
-                        text =
-                            if (
-                                currentFilter != null
-                            ) {
-                                "$displayedCountValue APPS IN FILTER"
-                            } else {
-                                "$displayedCountValue USER APPS PROTECTED"
-                            },
-                        color =
-                            Color.Gray.copy(
-                                alpha = 0.68f
-                            ),
-                        fontSize = 9.sp,
+                        text = when {
+
+                            state == GlyphState.SCANNING ->
+                                "SCANNING"
+
+                            state == GlyphState.FREEZING ->
+                                "OPTIMIZING"
+
+                            state == GlyphState.ADDING ->
+                                "PACKAGE LINKED"
+
+                            state == GlyphState.REMOVING ->
+                                "PACKAGE REMOVED"
+
+                            state == GlyphState.UNINSTALLING ->
+                                "UNINSTALLING"
+
+                            state == GlyphState.BACKUP ->
+                                "EXPORTING"
+
+                            state == GlyphState.RESTORE ->
+                                "IMPORTING"
+
+                            state == GlyphState.SUCCESS ->
+                                "COMPLETE"
+
+                            state == GlyphState.ERROR ->
+                                "FAILED"
+
+                            else ->
+                                displayLabel
+                        },
+                        color = if (state == GlyphState.SECURED_ACTIVE) {
+                            val infiniteTransition = rememberInfiniteTransition(label = "securedRed")
+                            val alpha by infiniteTransition.animateFloat(
+                                initialValue = 0.5f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(800),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "alpha"
+                            )
+                            NothingRed.copy(alpha = alpha)
+                        } else {
+                            accentColor.copy(alpha = 0.78f)
+                        },
+                        fontSize = 12.sp,
                         fontWeight =
-                            FontWeight.Medium,
-                        letterSpacing = 0.8.sp,
+                            FontWeight.Bold,
+                        letterSpacing = 1.3.sp,
                         maxLines = 1,
                         overflow =
                             TextOverflow.Ellipsis
                     )
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(1.dp)
+                    )
+
+                    /*
+                     * LARGE APP COUNT
+                     */
+                    if (state == GlyphState.IDLE || state == GlyphState.SECURED_ACTIVE) {
+
+                        Row(
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+
+                            Text(
+                                text =
+                                    displayedCountValue.toString(),
+                                color =
+                                    if (
+                                        actionableAppsCount > 0 || state == GlyphState.SECURED_ACTIVE
+                                    ) {
+                                        NothingRed
+                                    } else {
+                                        Color.White
+                                    },
+                                fontSize = 32.sp,
+                                fontWeight =
+                                    FontWeight.ExtraBold,
+                                letterSpacing =
+                                    (-1.4).sp,
+                                lineHeight = 34.sp
+                            )
+
+                            Spacer(
+                                modifier =
+                                    Modifier.width(7.dp)
+                            )
+
+                            Text(
+                                text = (if (state == GlyphState.SECURED_ACTIVE) {
+                                    "SECURED ACTIVE"
+                                } else {
+                                    subLabelText
+                                } + " • $totalFilterCount FILTERS").uppercase(),
+                                color = if (state == GlyphState.SECURED_ACTIVE) {
+                                    NothingRed.copy(alpha = 0.7f)
+                                } else {
+                                    Color.Gray.copy(
+                                        alpha = 0.75f
+                                    )
+                                },
+                                fontSize = 10.sp,
+                                fontWeight =
+                                    FontWeight.Bold,
+                                letterSpacing = 1.1.sp
+                            )
+                        }
+
+                    } else {
+
+                        Text(
+                            text = when {
+
+                                isFreezing ->
+                                    "OPTIMIZING CORES"
+
+                                isLoading ->
+                                    "INDEXING $appCount USER APPS"
+
+                                state == GlyphState.ADDING ->
+                                    "DATA SYNCED"
+
+                                state == GlyphState.REMOVING ->
+                                    "PACKAGE REMOVED"
+
+                                state == GlyphState.UNINSTALLING ->
+                                    "PURGING DATA"
+
+                                state == GlyphState.BACKUP ->
+                                    "EXPORTING DATA"
+
+                                state == GlyphState.RESTORE ->
+                                    "IMPORTING DATA"
+
+                                state == GlyphState.SUCCESS ->
+                                    "SYSTEM READY"
+
+                                state == GlyphState.ERROR ->
+                                    "CHECK OPERATION"
+
+                                else ->
+                                    "FRAIS"
+                            },
+                            color =
+                                Color.White.copy(
+                                    alpha = 0.86f
+                                ),
+                            fontSize = 16.sp,
+                            fontWeight =
+                                FontWeight.Bold,
+                            maxLines = 1,
+                            overflow =
+                                TextOverflow.Ellipsis
+                        )
+                    }
+
+                    /*
+                     * BOTTOM STATUS / ACTIVE BADGE
+                     */
+                    if (state == GlyphState.IDLE) {
+
+                        Spacer(
+                            modifier =
+                                Modifier.height(3.dp)
+                        )
+
+                        if (actionableAppsCount > 0) {
+
+                            /*
+                             * ACTIVE APPS
+                             *
+                             * Instead of:
+                             * ● ACTIVE 03
+                             *
+                             * we make the status feel like
+                             * a small Nothing-style indicator.
+                             */
+                            Row(
+                                verticalAlignment =
+                                    Alignment.CenterVertically
+                            ) {
+
+                                Text(
+                                    text = "●",
+                                    color = NothingRed,
+                                    fontSize = 9.sp
+                                )
+
+                                Spacer(
+                                    modifier =
+                                        Modifier.width(5.dp)
+                                )
+
+                                Text(
+                                    text = "ACTIVE",
+                                    color =
+                                        Color.White.copy(
+                                            alpha = 0.78f
+                                        ),
+                                    fontSize = 9.sp,
+                                    fontWeight =
+                                        FontWeight.Bold,
+                                    letterSpacing = 1.2.sp
+                                )
+
+                                Spacer(
+                                    modifier =
+                                        Modifier.width(6.dp)
+                                )
+
+                                Text(
+                                    text =
+                                        actionableAppsCount
+                                            .toString()
+                                            .padStart(2, '0'),
+                                    color = NothingRed,
+                                    fontSize = 12.sp,
+                                    fontWeight =
+                                        FontWeight.ExtraBold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+
+                        } else {
+
+                            Text(
+                                text =
+                                    if (
+                                        currentFilter != null
+                                    ) {
+                                        "$displayedCountValue APPS IN FILTER"
+                                    } else {
+                                        "$displayedCountValue USER APPS PROTECTED"
+                                    },
+                                color =
+                                    Color.Gray.copy(
+                                        alpha = 0.68f
+                                    ),
+                                fontSize = 9.sp,
+                                fontWeight =
+                                    FontWeight.Medium,
+                                letterSpacing = 0.8.sp,
+                                maxLines = 1,
+                                overflow =
+                                    TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
+            }
+        } else {
+            StackedGlyphWidget(
+                isVisible = pagerState.currentPage == 1,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun StackedGlyphWidget(
+    isVisible: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var nextAlarm by remember { mutableStateOf<String?>(null) }
+    var bluetoothDevices by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
+
+    LaunchedEffect(isVisible) {
+        if (isVisible) {
+            while (true) {
+                nextAlarm = com.khaled.frais.utils.HSystemInfo.getNextAlarm()
+                bluetoothDevices = com.khaled.frais.utils.HSystemInfo.getBluetoothDevices()
+                delay(30000) // Refresh every 30 seconds while visible
+            }
+        }
+    }
+
+    Row(
+        modifier = modifier
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        GlyphMatrix(
+            modifier = Modifier.size(76.dp),
+            pattern = GlyphEngine.Patterns.EYES_OPEN, // Or a generic info pattern
+            accentColor = Color.White.copy(alpha = 0.6f)
+        )
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "SYSTEM STACK",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            if (nextAlarm != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Alarm,
+                        null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "NEXT: $nextAlarm",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            } else {
+                Text(
+                    text = "NO ALARMS SET",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray.copy(alpha = 0.5f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            if (bluetoothDevices.isNotEmpty()) {
+                val device = bluetoothDevices.first()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Bluetooth,
+                        null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "${device.first}: ${if (device.second >= 0) "${device.second}%" else "CONNECTED"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            } else {
+                Text(
+                    text = "NO DEVICES CONNECTED",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray.copy(alpha = 0.5f)
+                )
             }
         }
     }

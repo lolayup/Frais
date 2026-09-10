@@ -23,9 +23,11 @@ import com.khaled.frais.ui.components.NothingDivider
 fun WidgetStack(
     widgets: List<FraisData.WidgetMetadata>,
     onRemoveWidget: (Int) -> Unit,
+    state: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
+        state = state,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -36,6 +38,35 @@ fun WidgetStack(
                 onRemove = { onRemoveWidget(widget.appWidgetId) }
             )
         }
+        
+        // Extra scroll space at the bottom
+        item {
+            Spacer(Modifier.height(100.dp))
+        }
+    }
+}
+
+@Composable
+fun FraisWidgetContainer(
+    modifier: Modifier = Modifier,
+    onLongClick: () -> Unit = {},
+    content: @Composable BoxScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onLongPress = {
+                        onLongClick()
+                    }
+                )
+            },
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Box(modifier = Modifier.padding(8.dp), content = content)
     }
 }
 
@@ -68,24 +99,13 @@ fun WidgetContainer(
         )
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onLongPress = {
-                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        showDeleteConfirm = true
-                    }
-                )
-            },
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.05f),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Box(modifier = Modifier.padding(8.dp)) {
-            AndroidWidgetHostViewWrapper(widget)
+    FraisWidgetContainer(
+        onLongClick = {
+            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+            showDeleteConfirm = true
         }
+    ) {
+        AndroidWidgetHostViewWrapper(widget)
     }
 }
 

@@ -15,6 +15,11 @@ class ActiveAppRepository(private val context: Context) {
         activePackages.mapNotNull { pkg ->
             val appInfo = allApps.find { it.packageName == pkg } ?: return@mapNotNull null
             
+            // Only show apps that are launchable (visible in drawer)
+            if (!appInfo.isLaunchable || context.packageManager.getLaunchIntentForPackage(pkg) == null) {
+                return@mapNotNull null
+            }
+            
             val icon = appInfo.applicationInfo?.let { 
                 AppIconCache.getOrLoadBitmap(context, it, 0, 100) 
             }

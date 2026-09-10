@@ -12,15 +12,17 @@ import org.json.JSONObject
 
 object FraisData {
     const val URL_GITHUB = "https://github.com/khaled0528/Frais"
-    const val VERSION = "1.7"
+    const val VERSION = "1.8.9"
     private const val KEY_ID = "id"
     private const val KEY_PINNED = "pinned"
     private const val KEY_WHITELISTED = "whitelisted"
     private const val KEY_PRIVATE = "private"
     private const val KEY_SAFE_TO_FREEZE = "safe_to_freeze"
     private const val KEY_EXCLUDE_MOST_USED = "exclude_most_used"
+    private const val KEY_HIDDEN_FROM_HOME = "hidden_from_home"
     private const val KEY_HIDE_FROM_LAUNCHER = "hide_from_launcher"
     private const val KEY_MUTE_ON_LAUNCH = "mute_on_launch"
+    private const val KEY_PREVENT_NETWORK = "prevent_network"
     const val KEY_PACKAGE = "package"
     const val KEY_FROZEN = "frozen"
     private const val SORT_BY = "sort_by"
@@ -65,12 +67,15 @@ object FraisData {
     const val GRID_COLUMNS = "grid_columns_f"
     const val ICON_SIZE = "icon_size_f"
     const val SHOW_LABELS = "show_labels"
+    const val SHOW_FILTER_LABELS = "show_filter_labels"
     const val SPACING_TYPE = "spacing_type"
     const val SHOW_TAGS = "show_tags"
     const val SHOW_SYSTEM_APPS = "show_system_apps"
     const val SHOW_NON_LAUNCHABLE_APPS = "show_non_launchable_apps"
     const val HOME_TAGS_COLLAPSED = "home_tags_collapsed"
     const val HOME_FAVORITES_COLLAPSED = "home_favorites_collapsed"
+    const val HIDE_FILTERS = "hide_filters"
+    const val GROUP_BY_CATEGORY = "group_by_category"
     const val SHOW_PULSE_DOT = "show_pulse_dot"
     const val GRAIN_INTENSITY = "grain_intensity"
     const val AUTO_FREEZE_NOTIFICATION = "auto_freeze_notification"
@@ -93,6 +98,8 @@ object FraisData {
     const val SETTINGS_CORE_EXPANDED = "settings_core_expanded"
     const val SETTINGS_EXPANDED_FILTER = "settings_expanded_filter"
     const val DELETED_TAGS = "deleted_tags"
+    const val COLLAPSED_CATEGORIES = "collapsed_categories"
+    const val CLOSE_ALL_PROTECTED = "close_all_protected"
 
     private val sp by lazy { PreferenceManager.getDefaultSharedPreferences(app) }
     var sortBy: String
@@ -137,6 +144,9 @@ object FraisData {
     val gridColumns get() = sp.getFloat(GRID_COLUMNS, 4f).toInt()
     val iconSize get() = sp.getFloat(ICON_SIZE, 64f)
     val showLabels get() = sp.getBoolean(SHOW_LABELS, true)
+    var showFilterLabels
+        get() = sp.getBoolean(SHOW_FILTER_LABELS, true)
+        set(value) = sp.edit { putBoolean(SHOW_FILTER_LABELS, value) }
     val spacingType get() = sp.getString(SPACING_TYPE, "comfortable")!!
 
     var showTags
@@ -158,6 +168,22 @@ object FraisData {
     var homeFavoritesCollapsed
         get() = sp.getBoolean(HOME_FAVORITES_COLLAPSED, false)
         set(value) = sp.edit { putBoolean(HOME_FAVORITES_COLLAPSED, value) }
+
+    var hideFilters
+        get() = sp.getBoolean(HIDE_FILTERS, false)
+        set(value) = sp.edit { putBoolean(HIDE_FILTERS, value) }
+
+    var groupByCategory
+        get() = sp.getBoolean(GROUP_BY_CATEGORY, false)
+        set(value) = sp.edit { putBoolean(GROUP_BY_CATEGORY, value) }
+
+    var closeAllProtectedApps: Set<String>
+        get() = sp.getStringSet(CLOSE_ALL_PROTECTED, emptySet()) ?: emptySet()
+        set(value) = sp.edit { putStringSet(CLOSE_ALL_PROTECTED, value) }
+
+    var collapsedCategories: Set<String>
+        get() = sp.getStringSet(COLLAPSED_CATEGORIES, emptySet()) ?: emptySet()
+        set(value) = sp.edit { putStringSet(COLLAPSED_CATEGORIES, value) }
 
     private val dir = "${app.filesDir.path}/v1"
     private val appsPath = "$dir/apps.json"
@@ -187,11 +213,13 @@ object FraisData {
         var isPrivate: Boolean = false,
         var isSafeToFreeze: Boolean = false,
         var excludeMostUsed: Boolean = false,
+        var hiddenFromHome: Boolean = false,
         var hideFromLauncher: Boolean = false,
         var muteOnLaunch: Boolean = false,
         var locationOnLaunch: Boolean = false,
         var dataOnLaunch: Boolean = false,
         var batterySaverOnLaunch: Boolean = false,
+        var preventNetwork: Boolean = false,
         var manualTagId: Int? = null,
         val excludedTagIds: MutableList<Int> = java.util.Collections.synchronizedList(mutableListOf())
     )
@@ -213,11 +241,13 @@ object FraisData {
                         isPrivate = obj.optBoolean(KEY_PRIVATE),
                         isSafeToFreeze = obj.optBoolean(KEY_SAFE_TO_FREEZE),
                         excludeMostUsed = obj.optBoolean(KEY_EXCLUDE_MOST_USED),
+                        hiddenFromHome = obj.optBoolean(KEY_HIDDEN_FROM_HOME),
                         hideFromLauncher = obj.optBoolean(KEY_HIDE_FROM_LAUNCHER),
                         muteOnLaunch = obj.optBoolean(KEY_MUTE_ON_LAUNCH),
                         locationOnLaunch = obj.optBoolean("location_on_launch"),
                         dataOnLaunch = obj.optBoolean("data_on_launch"),
                         batterySaverOnLaunch = obj.optBoolean("battery_saver_on_launch"),
+                        preventNetwork = obj.optBoolean(KEY_PREVENT_NETWORK),
                         manualTagId = if (obj.has("manualTagId")) {
                             val id = obj.getInt("manualTagId")
                             if (id == -1) null else id
@@ -254,11 +284,13 @@ object FraisData {
                             .put(KEY_PRIVATE, it.isPrivate)
                             .put(KEY_SAFE_TO_FREEZE, it.isSafeToFreeze)
                             .put(KEY_EXCLUDE_MOST_USED, it.excludeMostUsed)
+                            .put(KEY_HIDDEN_FROM_HOME, it.hiddenFromHome)
                             .put(KEY_HIDE_FROM_LAUNCHER, it.hideFromLauncher)
                             .put(KEY_MUTE_ON_LAUNCH, it.muteOnLaunch)
                             .put("location_on_launch", it.locationOnLaunch)
                             .put("data_on_launch", it.dataOnLaunch)
                             .put("battery_saver_on_launch", it.batterySaverOnLaunch)
+                            .put(KEY_PREVENT_NETWORK, it.preventNetwork)
                             .put("manualTagId", it.manualTagId ?: -1)
                             .put("excludedTagIds", JSONArray(synchronized(it.excludedTagIds) { it.excludedTagIds.toList() }))
                     )
@@ -289,7 +321,6 @@ object FraisData {
 
     private val builtInTags = listOf(
         Tag(TAG_ID_MOST_USED, "Most Used", "🔥", isBuiltIn = true, order = -1),
-        Tag(TAG_ID_GAMES, "Games", "🎮", isBuiltIn = true),
         Tag(TAG_ID_SOCIAL, "Social", "👥", isBuiltIn = true),
         Tag(TAG_ID_COMMUNICATION, "Communication", "💬", isBuiltIn = true),
         Tag(TAG_ID_PRODUCTIVITY, "Productivity", "💼", isBuiltIn = true),
@@ -303,8 +334,6 @@ object FraisData {
         Tag(TAG_ID_DEVELOPMENT, "Development", "💻", isBuiltIn = true),
         Tag(TAG_ID_TRAVEL, "Travel", "✈️", isBuiltIn = true),
         Tag(TAG_ID_HEALTH, "Health", "❤️", isBuiltIn = true),
-        Tag(TAG_ID_SYSTEM, "System", "⚙️", isBuiltIn = true),
-        Tag(TAG_ID_USER, "User Apps", "👤", isBuiltIn = true),
         Tag(TAG_ID_OTHER, "Other", "📦", isBuiltIn = true)
     )
 

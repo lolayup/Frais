@@ -5,20 +5,28 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.khaled.frais.ui.components.AppIcon
 import com.khaled.frais.ui.components.NothingDivider
 import com.khaled.frais.ui.components.NothingSectionHeader
+import com.khaled.frais.utils.HPackages
 
 @Composable
 fun WidgetPage(
@@ -73,15 +81,24 @@ fun WidgetPage(
         }
     }
 
+    val scrollState = rememberLazyListState()
+    val isScrolling = scrollState.isScrollInProgress
+
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showPicker = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = MaterialTheme.shapes.extraSmall
+            AnimatedVisibility(
+                visible = !isScrolling,
+                enter = fadeIn() + expandIn(expandFrom = Alignment.Center),
+                exit = fadeOut() + shrinkOut(shrinkTowards = Alignment.Center)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Widget")
+                FloatingActionButton(
+                    onClick = { showPicker = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = MaterialTheme.shapes.extraSmall
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Widget")
+                }
             }
         },
         containerColor = androidx.compose.ui.graphics.Color.Transparent
@@ -100,6 +117,7 @@ fun WidgetPage(
                 WidgetStack(
                     widgets = widgets,
                     onRemoveWidget = { viewModel.removeWidget(it) },
+                    state = scrollState,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -211,20 +229,61 @@ fun WidgetPickerItem(
     onWidgetSelected: (AppWidgetProviderInfo) -> Unit
 ) {
     val context = LocalContext.current
-    ListItem(
-        headlineContent = { 
-            Text(
-                provider.loadLabel(context.packageManager).uppercase(),
-                style = MaterialTheme.typography.labelSmall
-            ) 
-        },
-        supportingContent = { 
-            Text(
-                provider.provider.packageName,
-                style = MaterialTheme.typography.labelSmall,
-                color = androidx.compose.ui.graphics.Color.Gray
-            ) 
-        },
-        modifier = Modifier.clickable { onWidgetSelected(provider) }
+    val appInfo = remember(provider.provider.packageName) {
+        HPackages.getApplicationInfoOrNull(provider.provider.packageName)
+    }
+
+    Column(modifier = Modifier.clickable { onWidgetSelected(provider) }) {
+        ListItem(
+            headlineContent = { 
+                Text(
+                    provider.loadLabel(context.packageManager).uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                ) 
+            },
+            supportingContent = { 
+                Text(
+                    provider.provider.packageName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = androidx.compose.ui.graphics.Color.Gray
+                ) 
+            },
+            leadingContent = {
+                AppIcon(info = appInfo, size = 32.dp)
+            }
+        )
+        
+        // Preview if available
+        val preview = remember(provider) { provider.loadPreviewImage(context, 0) }
+        if (preview != null) {
+            androidx.compose.foundation.Image(
+                bitmap = preview.toBitmap().asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 120.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.1f)),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+            )
+        }
+        
+        NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
+    }
+}
+
+// Extension to convert Drawable to Bitmap safely
+private fun android.graphics.drawable.Drawable.toBitmap(): android.graphics.Bitmap {
+    if (this is android.graphics.drawable.BitmapDrawable) return bitmap
+    val bitmap = android.graphics.Bitmap.createBitmap(
+        intrinsicWidth.coerceAtLeast(1),
+        intrinsicHeight.coerceAtLeast(1),
+        android.graphics.Bitmap.Config.ARGB_8888
     )
+    val canvas = android.graphics.Canvas(bitmap)
+    setBounds(0, 0, canvas.width, canvas.height)
+    draw(canvas)
+    return bitmap
 }

@@ -17,16 +17,30 @@ class ActiveAppViewModel : ViewModel() {
     val activeApps = _activeApps.asStateFlow()
 
     private var isMonitoring = false
+    private var lastAllApps: List<AppInfo>? = null
 
     fun startMonitoring(allApps: List<AppInfo>) {
+        lastAllApps = allApps
         if (isMonitoring) return
         isMonitoring = true
         
         viewModelScope.launch {
             while (isMonitoring) {
-                _activeApps.value = repository.getActiveApps(allApps)
-                delay(10000) // Refresh every 10 seconds
+                refreshInternal()
+                delay(2000) // Improved refresh rate
             }
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            refreshInternal()
+        }
+    }
+
+    private suspend fun refreshInternal() {
+        lastAllApps?.let { allApps ->
+            _activeApps.value = repository.getActiveApps(allApps)
         }
     }
 

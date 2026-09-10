@@ -13,11 +13,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.khaled.frais.ui.games.GamesLauncherScreen
 import com.khaled.frais.ui.home.HomeScreen
-import com.khaled.frais.ui.home.HomeViewModel
+import com.khaled.frais.ui.home.viewmodel.HomeViewModel
 import com.khaled.frais.ui.private.PrivateSpaceScreen
 import com.khaled.frais.features.widgets.WidgetPage
 import com.khaled.frais.ui.settings.SettingsScreen
 import com.khaled.frais.ui.theme.AppTheme
+import com.khaled.frais.features.activity.ActiveAppViewModel
 import kotlinx.coroutines.launch
 
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -72,7 +73,8 @@ enum class NavigationMode { Private, Widgets }
 
 @Composable
 fun FraisMainUI(
-    homeViewModel: HomeViewModel = viewModel()
+    homeViewModel: HomeViewModel = viewModel(),
+    activeAppViewModel: ActiveAppViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val uiState by homeViewModel.uiState.collectAsState()
@@ -126,14 +128,14 @@ fun FraisMainUI(
 
     val screens = listOf(
         Screen.Home,
-        Screen.Games,
-        Screen.PrivateSpace
+        Screen.PrivateSpace,
+        Screen.Games
     )
 
     var isSearchActive by remember { mutableStateOf(false) }
     var isGlyphPopupActive by remember { mutableStateOf(false) }
     var settingsState by remember { mutableStateOf(SettingsState.Closed) }
-    var navigationMode by remember { mutableStateOf(NavigationMode.Private) }
+    var navigationMode by remember { mutableStateOf(NavigationMode.Widgets) }
     
     // Dynamic Icon Logic
     LaunchedEffect(uiState.actionableAppsCount, isPrivateSpaceAuthenticated) {
@@ -155,13 +157,26 @@ fun FraisMainUI(
     val pagerState = rememberPagerState(pageCount = { screens.size })
     val coroutineScope = rememberCoroutineScope()
 
-    // Predictive Back Handling
-    BackHandler(enabled = isSearchActive || isGlyphPopupActive || settingsState != SettingsState.Closed) {
+    // Handle Go Home Event
+    LaunchedEffect(Unit) {
+        homeViewModel.goHomeEvent.collect {
+            if (pagerState.currentPage != 0) {
+                pagerState.animateScrollToPage(0)
+            }
+        }
+    }
+
+    // Global Back Handling to prevent reinitialization
+    BackHandler(enabled = true) {
         when {
             isSearchActive -> isSearchActive = false
             isGlyphPopupActive -> isGlyphPopupActive = false
             settingsState == SettingsState.Expanded -> settingsState = SettingsState.Compact
             settingsState == SettingsState.Compact -> settingsState = SettingsState.Closed
+            pagerState.currentPage != 0 -> {
+                coroutineScope.launch { pagerState.animateScrollToPage(0) }
+            }
+            // Otherwise, consume it and do nothing to prevent the app from finishing/reinitializing
         }
     }
 
@@ -261,7 +276,10 @@ fun FraisMainUI(
                             userScrollEnabled = true
                         ) { page ->
                             when (screens[page]) {
-                                Screen.Home -> HomeScreen(viewModel = homeViewModel)
+                                Screen.Home -> HomeScreen(
+                                    viewModel = homeViewModel,
+                                    activeAppViewModel = activeAppViewModel
+                                )
                                 Screen.Games -> GamesLauncherScreen(homeViewModel)
                                 Screen.PrivateSpace -> {
                                     AnimatedContent(
@@ -294,13 +312,12 @@ fun FraisMainUI(
             // 2. GLASS COMPONENTS: Sit outside/above the backdrop source to avoid recursion
 
             // Overlay to close active widgets/popups when clicking empty space
-            if (isSearchActive || isGlyphPopupActive || settingsState != SettingsState.Closed) {
+            if (isGlyphPopupActive || settingsState != SettingsState.Closed) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
                             detectTapGestures {
-                                isSearchActive = false
                                 isGlyphPopupActive = false
                                 if (settingsState != SettingsState.Closed) settingsState = SettingsState.Closed
                             }
@@ -437,7 +454,7 @@ fun CompactDock(
                 modifier = Modifier.padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val dockSlots = listOf(Screen.Home, Screen.Games, Screen.PrivateSpace)
+                val dockSlots = listOf(Screen.Home, Screen.PrivateSpace, Screen.Games)
                 val haptics = LocalHapticFeedback.current
                 
                 dockSlots.forEach { slot ->

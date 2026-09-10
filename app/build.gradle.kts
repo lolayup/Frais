@@ -19,7 +19,7 @@ android {
     namespace = "com.khaled.frais"
     compileSdk = 36
 
-    val vName = "1.7"
+    val vName = "1.8.9"
     defaultConfig {
         applicationId = "com.khaled.frais"
         minSdk = 23
@@ -28,7 +28,19 @@ android {
         versionName = vName
 
         ndk {
-            abiFilters += "arm64-v8a"
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags("-std=c++17")
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 

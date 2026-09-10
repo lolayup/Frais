@@ -32,8 +32,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.khaled.frais.app.BackupManager
 import com.khaled.frais.app.FraisData
 import com.khaled.frais.ui.components.*
-import com.khaled.frais.ui.home.FilterEditDialog
-import com.khaled.frais.ui.home.HomeViewModel
+import com.khaled.frais.ui.home.components.FilterEditDialog
+import com.khaled.frais.ui.home.viewmodel.HomeViewModel
 import com.khaled.frais.ui.theme.NothingRed
 import com.khaled.frais.utils.HUI
 import kotlinx.coroutines.launch
@@ -57,10 +57,13 @@ fun SettingsScreen(
     var gridColumns by rememberPreferenceState(FraisData.GRID_COLUMNS, "4")
     var iconSize by rememberPreferenceState(FraisData.ICON_SIZE, "64")
     var showLabels by rememberPreferenceState(FraisData.SHOW_LABELS, true)
+    var hideFilters by rememberPreferenceState(FraisData.HIDE_FILTERS, false)
+    var groupByCategory by rememberPreferenceState(FraisData.GROUP_BY_CATEGORY, false)
+    var showFilterLabels by rememberPreferenceState(FraisData.SHOW_FILTER_LABELS, true)
     var spacingType by rememberPreferenceState(FraisData.SPACING_TYPE, "comfortable")
     var appTheme by rememberPreferenceState(FraisData.APP_THEME, FraisData.THEME_AMOLED)
     var grainIntensity by rememberPreferenceState(FraisData.GRAIN_INTENSITY, 0.1f)
-    var showPulseDot by rememberPreferenceState(FraisData.SHOW_PULSE_DOT, true)
+    var isHiddenAppsExpanded by remember { mutableStateOf(false) }
     var smartClassification by rememberPreferenceState(FraisData.SMART_CLASSIFICATION, true)
     var flexibleFilters by rememberPreferenceState(FraisData.FLEXIBLE_FILTERS, true)
     var showNonLaunchable by rememberPreferenceState(FraisData.SHOW_NON_LAUNCHABLE_APPS, false)
@@ -141,6 +144,19 @@ fun SettingsScreen(
                     onToggle = { isCoreExpanded = !isCoreExpanded },
                     isAnyExpanded = isAnySectionExpanded
                 ) {
+                    SettingsItem(
+                        title = "DEFAULT HOME SCREEN",
+                        description = "SET FRAIS AS THE SYSTEM LAUNCHER"
+                    ) {
+                        Button(
+                            onClick = { HUI.openHomeSettings() },
+                            shape = MaterialTheme.shapes.extraSmall,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("CONFIGURE", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem(
                         title = "SHIZUKU PERMISSION",
                         description = if (uiState.isShizukuPermissionGranted) "AUTHORIZED" else "PERMISSION REQUIRED"
@@ -557,6 +573,30 @@ fun SettingsScreen(
                         Switch(checked = showLabels, onCheckedChange = { showLabels = it })
                     }
                     NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsItem(
+                        title = "HIDE FILTERS",
+                        description = "REMOVE FILTERS WIDGET FROM HOME"
+                    ) {
+                        Switch(checked = hideFilters, onCheckedChange = { hideFilters = it })
+                    }
+                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsItem(
+                        title = "GROUP BY CATEGORY",
+                        description = "ORGANIZE HOME SCREEN BY APP TYPE"
+                    ) {
+                        Switch(checked = groupByCategory, onCheckedChange = { 
+                            groupByCategory = it 
+                            viewModel.updateFilteredApps()
+                        })
+                    }
+                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsItem(
+                        title = "SHOW FILTER LABELS",
+                        description = "DISPLAY NAMES ON FILTER TAGS"
+                    ) {
+                        Switch(checked = showFilterLabels, onCheckedChange = { showFilterLabels = it })
+                    }
+                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("SPACING TYPE", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                         Spacer(Modifier.height(8.dp))
@@ -598,11 +638,61 @@ fun SettingsScreen(
                         )
                     }
                     NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    
                     SettingsItem(
-                        title = "PULSE DOT",
-                        description = "SHOW ANIMATED DOT FOR ACTIVE FILTERS"
+                        title = "HIDDEN APPS",
+                        description = "APPS REMOVED FROM HOME SCREEN"
                     ) {
-                        Switch(checked = showPulseDot, onCheckedChange = { showPulseDot = it })
+                        IconButton(onClick = { isHiddenAppsExpanded = !isHiddenAppsExpanded }) {
+                            Icon(
+                                if (isHiddenAppsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                null
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(visible = isHiddenAppsExpanded) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            if (uiState.hiddenApps.isEmpty()) {
+                                Text(
+                                    "NO HIDDEN APPS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            } else {
+                                uiState.hiddenApps.forEach { app ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        AppIcon(info = app.applicationInfo, size = 24.dp)
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            app.name.uppercase(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                app.hiddenFromHome = false
+                                                viewModel.updateFilteredApps()
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Visibility,
+                                                null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

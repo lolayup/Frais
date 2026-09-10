@@ -20,11 +20,18 @@ object HSystemInfo {
         return SimpleDateFormat("EEE HH:mm", Locale.getDefault()).format(date)
     }
 
+    @android.annotation.SuppressLint("MissingPermission")
     fun getBluetoothDevices(): List<Pair<String, Int>> {
         val bluetoothManager = app.getSystemService<BluetoothManager>() ?: return emptyList()
         val adapter = bluetoothManager.adapter ?: return emptyList()
         
         if (!adapter.isEnabled) return emptyList()
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            if (app.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                return emptyList()
+            }
+        }
 
         val connectedDevices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT)
         return connectedDevices.map { device ->

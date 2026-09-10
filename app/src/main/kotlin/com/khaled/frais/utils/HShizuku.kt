@@ -23,12 +23,12 @@ object HShizuku {
     val isRoot get() = Shizuku.getUid() == 0
     private val callerPackage get() = if (isRoot) BuildConfig.APPLICATION_ID else "com.android.shell"
 
-    private fun asInterface(className: String, original: IBinder): Any = Class.forName("$className\$Stub").run {
+    internal fun asInterface(className: String, original: IBinder): Any = Class.forName("$className\$Stub").run {
         if (HTarget.P) HiddenApiBypass.invoke(this, null, "asInterface", ShizukuBinderWrapper(original))
         else getMethod("asInterface", IBinder::class.java).invoke(null, ShizukuBinderWrapper(original))
     }
 
-    private fun asInterface(className: String, serviceName: String): Any =
+    internal fun asInterface(className: String, serviceName: String): Any =
         asInterface(className, SystemServiceHelper.getSystemService(serviceName))
 
     val lockScreen
@@ -262,6 +262,10 @@ object HShizuku {
 
     fun setBatterySaverEnabled(enabled: Boolean): Boolean {
         return execute("settings put global low_power ${if (enabled) 1 else 0}").first == 0
+    }
+
+    fun setAppNetworkAllowed(packageName: String, allowed: Boolean): Boolean {
+        return execute("appops set $packageName INTERNET ${if (allowed) "allow" else "deny"}").first == 0
     }
 
     fun execute(command: String, root: Boolean = isRoot): Pair<Int, String?> = runCatching {
