@@ -81,6 +81,7 @@ object FraisData {
     const val AUTO_FREEZE_NOTIFICATION = "auto_freeze_notification"
     const val SMART_MAPPING_LOCATION = "smart_mapping_location"
     const val SMART_MAPPING_DATA = "smart_mapping_data"
+    const val WALLPAPER_URI = "wallpaper_uri"
 
     const val ACTION_NONE = "none"
 
@@ -141,6 +142,10 @@ object FraisData {
     var smartMappingData
         get() = sp.getBoolean(SMART_MAPPING_DATA, true)
         set(value) = sp.edit { putBoolean(SMART_MAPPING_DATA, value) }
+
+    var wallpaperUri: String?
+        get() = sp.getString(WALLPAPER_URI, null)
+        set(value) = sp.edit { putString(WALLPAPER_URI, value) }
 
     var lastSelectedTag: Int
         get() = sp.getInt(LAST_SELECTED_TAG, TAG_ID_MOST_USED)
@@ -286,7 +291,8 @@ object FraisData {
     data class WidgetMetadata(
         val appWidgetId: Int,
         val provider: String,
-        var order: Int = 0
+        var order: Int = 0,
+        var height: Int = -1 // -1 means use default
     )
     
     data class AppMetadata(
@@ -467,7 +473,8 @@ object FraisData {
                     add(WidgetMetadata(
                         appWidgetId = obj.getInt("appWidgetId"),
                         provider = obj.getString("provider"),
-                        order = obj.optInt("order", i)
+                        order = obj.optInt("order", i),
+                        height = obj.optInt("height", -1)
                     ))
                 }
             }
@@ -484,7 +491,8 @@ object FraisData {
                 put(JSONObject()
                     .put("appWidgetId", it.appWidgetId)
                     .put("provider", it.provider)
-                    .put("order", it.order))
+                    .put("order", it.order)
+                    .put("height", it.height))
             }
             toString()
         })

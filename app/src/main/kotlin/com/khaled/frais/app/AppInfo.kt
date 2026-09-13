@@ -173,42 +173,44 @@ class AppInfo(
         get() {
             val result = mutableListOf<Int>()
             
-            // 1. Primary Category (Exclusive)
-            val category = manualTagId ?: getBestAutoTag()
-            if (category != null) result.add(category)
+            // 1. Manual Tag
+            manualTagId?.let { result.add(it) }
             
-            // 2. Meta Filter (Inclusive - Most Used)
+            // 2. Auto Tags (Inclusive, ordered by priority)
+            val candidates = autoTagIds.filter { it != FraisData.TAG_ID_MOST_USED && it !in excludedTagIds }
+            
+            val priority = listOf(
+                FraisData.TAG_ID_SOCIAL,
+                FraisData.TAG_ID_COMMUNICATION,
+                FraisData.TAG_ID_PRODUCTIVITY,
+                FraisData.TAG_ID_MEDIA,
+                FraisData.TAG_ID_PHOTOGRAPHY,
+                FraisData.TAG_ID_FINANCE,
+                FraisData.TAG_ID_EDUCATION,
+                FraisData.TAG_ID_TOOLS,
+                FraisData.TAG_ID_BROWSERS,
+                FraisData.TAG_ID_SHOPPING,
+                FraisData.TAG_ID_DEVELOPMENT,
+                FraisData.TAG_ID_TRAVEL,
+                FraisData.TAG_ID_HEALTH,
+                FraisData.TAG_ID_OTHER
+            )
+            
+            val sorted = candidates.sortedBy { 
+                val idx = priority.indexOf(it)
+                if (idx == -1) Int.MAX_VALUE else idx
+            }
+            result.addAll(sorted)
+            
+            // 3. Meta Filter
             if (autoTagIds.contains(FraisData.TAG_ID_MOST_USED) && FraisData.TAG_ID_MOST_USED !in excludedTagIds) {
                 result.add(FraisData.TAG_ID_MOST_USED)
             }
             
+            if (result.isEmpty()) result.add(FraisData.TAG_ID_OTHER)
+            
             return result.distinct()
         }
-
-    private fun getBestAutoTag(): Int? {
-        val candidates = autoTagIds.filter { it != FraisData.TAG_ID_MOST_USED && it !in excludedTagIds }
-        if (candidates.isEmpty()) return null
-        
-        // Specific categories have priority over generic ones
-        val priority = listOf(
-            FraisData.TAG_ID_SOCIAL,
-            FraisData.TAG_ID_COMMUNICATION,
-            FraisData.TAG_ID_PRODUCTIVITY,
-            FraisData.TAG_ID_MEDIA,
-            FraisData.TAG_ID_PHOTOGRAPHY,
-            FraisData.TAG_ID_FINANCE,
-            FraisData.TAG_ID_EDUCATION,
-            FraisData.TAG_ID_TOOLS,
-            FraisData.TAG_ID_BROWSERS,
-            FraisData.TAG_ID_SHOPPING,
-            FraisData.TAG_ID_DEVELOPMENT,
-            FraisData.TAG_ID_TRAVEL,
-            FraisData.TAG_ID_HEALTH,
-            FraisData.TAG_ID_OTHER
-        )
-        
-        return priority.firstOrNull { it in candidates } ?: candidates.first()
-    }
 
     var manualTagId: Int?
         get() = metadata.manualTagId
@@ -231,6 +233,16 @@ class AppInfo(
 
     fun updateState() {
         state = deriveState()
+    }
+
+    var searchRaw: String = ""
+        private set
+
+    fun updateSearchRaw() {
+        val categoryNames = tagIds.mapNotNull { id ->
+            FraisData.tags.find { it.id == id }?.name
+        }.joinToString(" ")
+        searchRaw = "$name $packageName ${description ?: ""} $categoryNames"
     }
 
     companion object {

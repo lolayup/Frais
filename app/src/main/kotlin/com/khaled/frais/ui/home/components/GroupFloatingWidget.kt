@@ -41,7 +41,7 @@ fun GroupFloatingWidget(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.7f)) // Dim background
+            .background(Color.Transparent) // No dim background
             .clickable { onDismiss() }
             .zIndex(50f),
         contentAlignment = Alignment.Center

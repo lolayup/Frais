@@ -22,6 +22,8 @@ import com.khaled.frais.ui.settings.SettingsScreen
 import com.khaled.frais.ui.theme.AppTheme
 import com.khaled.frais.features.activity.ActiveAppViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -41,6 +43,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Alignment
@@ -134,6 +137,27 @@ fun FraisMainUI(
         0.1f
     )
 
+    val wallpaperUri by rememberPreferenceState(
+        FraisData.WALLPAPER_URI,
+        ""
+    )
+
+    var wallpaperBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(wallpaperUri) {
+        if (wallpaperUri.isNotEmpty()) {
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val inputStream = context.contentResolver.openInputStream(android.net.Uri.parse(wallpaperUri))
+                    wallpaperBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                } catch (e: Exception) {
+                    wallpaperBitmap = null
+                }
+            }
+        } else {
+            wallpaperBitmap = null
+        }
+    }
+
     val screens = listOf(
         Screen.Home,
         Screen.PrivateSpace,
@@ -214,17 +238,28 @@ fun FraisMainUI(
 
     AppTheme(appTheme = appTheme) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // 1. BACKDROP SOURCE: Record the background area (including Scaffold content)
+            // 1. BACKDROP SOURCE: Record the background area (including Wallpaper and Scaffold content)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .layerBackdrop(backdrop)
             ) {
+                // 0. WALLPAPER LAYER (Inside backdrop source to allow glass blur)
+                wallpaperBitmap?.let {
+                    androidx.compose.foundation.Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                }
+
                 Scaffold(
                     modifier = Modifier.nothingNoise(grainIntensity),
+                    containerColor = if (wallpaperBitmap != null) Color.Transparent else MaterialTheme.colorScheme.background,
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     topBar = {
-                        Column(modifier = Modifier.background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
+                        Column(modifier = Modifier.background(if (wallpaperBitmap != null) Color.Transparent else MaterialTheme.colorScheme.background).statusBarsPadding()) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth()
@@ -732,6 +767,11 @@ fun SettingsSheet(
         FraisData.GRAIN_INTENSITY,
         0.1f
     )
+
+    val wallpaperUri by rememberPreferenceState(
+        FraisData.WALLPAPER_URI,
+        ""
+    )
     
     val progress by animateFloatAsState(
         targetValue = when (state) {
@@ -776,11 +816,14 @@ fun SettingsSheet(
                     }
                 }
                 .zIndex(2f),
-            color = MaterialTheme.colorScheme.background,
+            color = if (wallpaperUri.isNotEmpty()) Color.Transparent else MaterialTheme.colorScheme.background,
             shape = MaterialTheme.shapes.large,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
-            Box(modifier = Modifier.fillMaxSize().nothingNoise(grainIntensity)) {
+            Box(modifier = Modifier.fillMaxSize().then(
+                if (wallpaperUri.isNotEmpty()) Modifier.background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f))
+                else Modifier
+            ).nothingNoise(grainIntensity)) {
                 SettingsScreen(viewModel = viewModel)
                 
                 // Pull handle

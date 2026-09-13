@@ -18,10 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.khaled.frais.app.AppInfo
 import com.khaled.frais.app.FraisData
-import com.khaled.frais.ui.components.AppIcon
-import com.khaled.frais.ui.components.FraisIllustration
-import com.khaled.frais.ui.components.GlyphState
-import com.khaled.frais.ui.components.NothingDivider
+import com.khaled.frais.ui.components.*
 import com.khaled.frais.ui.home.viewmodel.HomeViewModel
 import com.khaled.frais.ui.theme.NothingRed
 
@@ -46,7 +43,7 @@ fun FilterEditDialog(
         else apps.filter { it.name.contains(searchQuery, ignoreCase = true) && filter.id !in it.tagIds }
     }
 
-    AlertDialog(
+    NothingDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraSmall,
         title = { 

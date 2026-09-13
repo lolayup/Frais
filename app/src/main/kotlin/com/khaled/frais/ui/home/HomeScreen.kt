@@ -55,6 +55,7 @@ fun HomeScreen(
     val grainIntensityPref by rememberPreferenceState(FraisData.GRAIN_INTENSITY, 0.1f)
     var isFavoritesCollapsed by rememberPreferenceState(FraisData.HOME_FAVORITES_COLLAPSED, false)
     var isMostUsedCollapsed by rememberPreferenceState("home_most_used_collapsed", false)
+    val wallpaperUri by rememberPreferenceState(FraisData.WALLPAPER_URI, "")
 
     val gridState = rememberLazyGridState()
 
@@ -74,7 +75,10 @@ fun HomeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().nothingNoise(grainIntensityPref).nothingDots()) {
+    Box(modifier = Modifier.fillMaxSize().then(
+        if (wallpaperUri.isEmpty()) Modifier.nothingNoise(grainIntensityPref).nothingDots()
+        else Modifier.nothingNoise(grainIntensityPref * 0.5f).nothingDots(Color.White.copy(alpha = 0.03f))
+    )) {
         val gridColumns = gridColumnsPref.toIntOrNull() ?: 4
         val showLabels = showLabelsPref
         val itemSpacing = when (spacingTypePref) {
@@ -217,7 +221,7 @@ fun HomeScreen(
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             val activeFilterNames = uiState.filters.filter { it.filter.id in uiState.selectedFilters }.map { it.filter.name.uppercase() }
                             val title = if (activeFilterNames.isEmpty()) "MAIN APPLICATIONS" else activeFilterNames.joinToString(" + ")
-                            
+
                             CategoryHeader(
                                 title = title,
                                 isCollapsed = false,
@@ -284,6 +288,7 @@ fun HomeScreen(
                             WidgetStack(
                                 widgets = widgets,
                                 onRemoveWidget = { com.khaled.frais.features.widgets.WidgetManager.deleteAppWidgetId(it) },
+                                onResizeWidget = { id, height -> com.khaled.frais.features.widgets.WidgetManager.updateWidgetHeight(id, height) },
                                 modifier = Modifier.fillMaxWidth().heightIn(max = 1000.dp)
                             )
                         }

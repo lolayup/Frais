@@ -55,12 +55,21 @@ object WidgetManager {
         _widgetsState.value = FraisData.widgets.toList()
     }
 
-    fun addWidget(appWidgetId: Int, provider: String) {
+    fun addWidget(appWidgetId: Int, provider: String, height: Int = -1) {
         synchronized(FraisData.widgets) {
             // Avoid duplicates
             if (FraisData.widgets.none { it.appWidgetId == appWidgetId }) {
-                FraisData.widgets.add(FraisData.WidgetMetadata(appWidgetId, provider))
+                FraisData.widgets.add(FraisData.WidgetMetadata(appWidgetId, provider, height = height))
             }
+        }
+        FraisData.saveWidgets()
+        _widgetsState.value = FraisData.widgets.toList()
+    }
+
+    fun updateWidgetHeight(appWidgetId: Int, newHeight: Int) {
+        synchronized(FraisData.widgets) {
+            val widget = FraisData.widgets.find { it.appWidgetId == appWidgetId }
+            widget?.height = newHeight
         }
         FraisData.saveWidgets()
         _widgetsState.value = FraisData.widgets.toList()

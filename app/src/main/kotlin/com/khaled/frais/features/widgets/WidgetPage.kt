@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.khaled.frais.ui.components.AppIcon
 import com.khaled.frais.ui.components.NothingDivider
@@ -35,50 +36,64 @@ fun WidgetPage(
     val widgets by viewModel.widgets.collectAsState()
     var showPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    var pendingWidgetId by remember { mutableStateOf(-1) }
     
     val configLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val data = result.data
-        val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1) ?: -1
-        if (result.resultCode == android.app.Activity.RESULT_OK && appWidgetId != -1) {
-            val provider = WidgetManager.getAppWidgetInfo(appWidgetId)
-            provider?.let {
-                WidgetManager.addWidget(appWidgetId, it.provider.flattenToString())
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1).takeIf { it != -1 } ?: pendingWidgetId
+            if (appWidgetId != -1) {
+                val provider = WidgetManager.getAppWidgetInfo(appWidgetId)
+                provider?.let {
+                    val initialHeight = it.minHeight
+                    WidgetManager.addWidget(appWidgetId, it.provider.flattenToString(), initialHeight)
+                }
             }
-        } else if (appWidgetId != -1) {
-            WidgetManager.deleteAppWidgetId(appWidgetId)
+        } else {
+            val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1).takeIf { it != -1 } ?: pendingWidgetId
+            if (appWidgetId != -1) {
+                WidgetManager.deleteAppWidgetId(appWidgetId)
+            }
         }
+        pendingWidgetId = -1
     }
 
     val bindLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val data = result.data
-        val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1) ?: -1
-        if (result.resultCode == android.app.Activity.RESULT_OK && appWidgetId != -1) {
-            val provider = WidgetManager.getAppWidgetInfo(appWidgetId)
-            if (provider != null) {
-                if (provider.configure != null) {
-                    val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                        component = provider.configure
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1).takeIf { it != -1 } ?: pendingWidgetId
+            if (appWidgetId != -1) {
+                val provider = WidgetManager.getAppWidgetInfo(appWidgetId)
+                if (provider != null) {
+                    if (provider.configure != null) {
+                        val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                            component = provider.configure
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        }
+                        try {
+                            pendingWidgetId = appWidgetId
+                            configLauncher.launch(intent)
+                        } catch (e: Exception) {
+                            WidgetManager.deleteAppWidgetId(appWidgetId)
+                            com.khaled.frais.utils.HUI.showToast("FAILED TO LAUNCH CONFIGURATION")
+                        }
+                    } else {
+                        val initialHeight = provider.minHeight
+                        WidgetManager.addWidget(appWidgetId, provider.provider.flattenToString(), initialHeight)
                     }
-                    configLauncher.launch(intent)
-                } else {
-                    WidgetManager.addWidget(appWidgetId, provider.provider.flattenToString())
                 }
             }
-        } else if (appWidgetId != -1) {
-            WidgetManager.deleteAppWidgetId(appWidgetId)
+        } else {
+            val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1).takeIf { it != -1 } ?: pendingWidgetId
+            if (appWidgetId != -1) {
+                WidgetManager.deleteAppWidgetId(appWidgetId)
+            }
         }
-    }
-
-    DisposableEffect(Unit) {
-        WidgetManager.startListening()
-        onDispose {
-            WidgetManager.stopListening()
-        }
+        pendingWidgetId = -1
     }
 
     val scrollState = rememberLazyListState()
@@ -95,7 +110,8 @@ fun WidgetPage(
                     onClick = { showPicker = true },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = MaterialTheme.shapes.extraSmall
+                    shape = MaterialTheme.shapes.extraSmall,
+                    modifier = Modifier.padding(bottom = 80.dp) // Lift above dock
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Widget")
                 }
@@ -117,6 +133,7 @@ fun WidgetPage(
                 WidgetStack(
                     widgets = widgets,
                     onRemoveWidget = { viewModel.removeWidget(it) },
+                    onResizeWidget = { id, height -> WidgetManager.updateWidgetHeight(id, height) },
                     state = scrollState,
                     modifier = Modifier.weight(1f)
                 )
@@ -137,13 +154,15 @@ fun WidgetPage(
                             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                         }
                         try {
+                            pendingWidgetId = id
                             configLauncher.launch(intent)
                         } catch (e: Exception) {
                             WidgetManager.deleteAppWidgetId(id)
                             com.khaled.frais.utils.HUI.showToast("FAILED TO LAUNCH CONFIGURATION")
                         }
                     } else {
-                        WidgetManager.addWidget(id, provider.provider.flattenToString())
+                        val initialHeight = provider.minHeight
+                        WidgetManager.addWidget(id, provider.provider.flattenToString(), initialHeight)
                     }
                 } else {
                     val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
@@ -151,6 +170,7 @@ fun WidgetPage(
                         putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider.provider)
                     }
                     try {
+                        pendingWidgetId = id
                         bindLauncher.launch(intent)
                     } catch (e: Exception) {
                         WidgetManager.deleteAppWidgetId(id)
@@ -163,6 +183,7 @@ fun WidgetPage(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetPicker(
     onWidgetSelected: (AppWidgetProviderInfo) -> Unit,
@@ -176,11 +197,25 @@ fun WidgetPicker(
             .sortedBy { it.loadLabel(context.packageManager).lowercase() } 
     }
     
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("ADD WIDGET", style = MaterialTheme.typography.labelMedium) },
-        text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+        sheetState = sheetState,
+        shape = MaterialTheme.shapes.extraSmall,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f).padding(horizontal = 16.dp)) {
+            Text(
+                "ADD WIDGET",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+                letterSpacing = 2.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 if (initialProviders.isNotEmpty()) {
                     item {
                         Text(
@@ -213,14 +248,10 @@ fun WidgetPicker(
                     WidgetPickerItem(provider, onWidgetSelected)
                 }
             }
-        },
-        confirmButton = { 
-            TextButton(onClick = onDismiss) { 
-                Text("CANCEL", style = MaterialTheme.typography.labelSmall) 
-            } 
-        },
-        shape = MaterialTheme.shapes.extraSmall
-    )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
 }
 
 @Composable

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -67,6 +68,7 @@ fun SettingsScreen(
     var autoFreezeNotification by rememberPreferenceState(FraisData.AUTO_FREEZE_NOTIFICATION, false)
     var smartMappingLocation by rememberPreferenceState(FraisData.SMART_MAPPING_LOCATION, true)
     var smartMappingData by rememberPreferenceState(FraisData.SMART_MAPPING_DATA, true)
+    var wallpaperUri by rememberPreferenceState(FraisData.WALLPAPER_URI, "")
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -76,6 +78,26 @@ fun SettingsScreen(
             com.khaled.frais.workers.FreezeNotificationWorker.schedule(context)
         } else {
             HUI.showToast("NOTIFICATION PERMISSION DENIED")
+        }
+    }
+
+    val wallpaperLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            // Persist permission for the URI if needed, though usually for launcher background
+            // simple string storage is enough if we use it with appropriate flags later or just load it.
+            // On Android 11+ we might need to take persistable URI permission if it's from a document provider.
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                // Ignore if not persistable
+            }
+            wallpaperUri = it.toString()
+            HUI.showToast("WALLPAPER UPDATED")
         }
     }
 
@@ -158,16 +180,24 @@ fun SettingsScreen(
                         title = "SHIZUKU PERMISSION",
                         description = if (uiState.isShizukuPermissionGranted) "AUTHORIZED" else "PERMISSION REQUIRED"
                     ) {
-                        if (!uiState.isShizukuPermissionGranted) {
-                            Button(
-                                onClick = { com.khaled.frais.app.AppManager.requestShizukuPermission(1001) },
-                                shape = MaterialTheme.shapes.extraSmall,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
+                        Button(
+                            onClick = { 
+                                val launchIntent = context.packageManager.getLaunchIntentForPackage("rikka.app.shizuku")
+                                if (launchIntent != null) {
+                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(launchIntent)
+                                } else {
+                                    com.khaled.frais.app.AppManager.requestShizukuPermission(1001)
+                                }
+                            },
+                            shape = MaterialTheme.shapes.extraSmall,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            if (!uiState.isShizukuPermissionGranted) {
                                 Text("REQUEST", style = MaterialTheme.typography.labelSmall)
+                            } else {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
                             }
-                        } else {
-                            Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                     NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -612,6 +642,48 @@ fun SettingsScreen(
                     }
                     NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("WALLPAPER", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Surface(
+                                onClick = { wallpaperLauncher.launch("image/*") },
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                contentColor = MaterialTheme.colorScheme.primary,
+                                shape = MaterialTheme.shapes.extraSmall,
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "SELECT WALLPAPER",
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (wallpaperUri.isNotEmpty()) {
+                                Surface(
+                                    onClick = { wallpaperUri = "" },
+                                    color = Color.Transparent,
+                                    contentColor = NothingRed,
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    border = BorderStroke(0.5.dp, NothingRed.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "CLEAR",
+                                        modifier = Modifier.padding(vertical = 12.dp),
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
                     SettingsItem(
                         title = "HIDDEN APPS",
                         description = "APPS REMOVED FROM HOME SCREEN"

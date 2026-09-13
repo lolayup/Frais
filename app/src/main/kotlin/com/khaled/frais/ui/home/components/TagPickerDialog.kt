@@ -8,14 +8,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.khaled.frais.app.AppInfo
 import com.khaled.frais.app.FraisData
+import com.khaled.frais.ui.components.NothingDialog
 
 @Composable
 fun TagPickerDialog(app: AppInfo, onDismiss: () -> Unit) {
     val filters = FraisData.tags
 
-    AlertDialog(
+    NothingDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraSmall,
         title = { Text("MANAGE FILTERS", fontWeight = FontWeight.Bold) },
@@ -23,7 +25,7 @@ fun TagPickerDialog(app: AppInfo, onDismiss: () -> Unit) {
             if (filters.isEmpty()) {
                 Text("No filters created yet.")
             } else {
-                LazyColumn {
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                     items(filters) { filter ->
                         var isChecked by remember { mutableStateOf(filter.id == app.manualTagId) }
                         ListItem(

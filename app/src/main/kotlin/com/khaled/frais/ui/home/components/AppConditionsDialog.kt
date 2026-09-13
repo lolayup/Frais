@@ -2,8 +2,8 @@ package com.khaled.frais.ui.home.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.khaled.frais.app.AppInfo
 import com.khaled.frais.ui.components.NothingDivider
+import com.khaled.frais.ui.components.NothingDialog
 import com.khaled.frais.ui.settings.SettingsItem
 import com.khaled.frais.utils.HShizuku
 
@@ -21,7 +22,7 @@ fun AppConditionsDialog(
     onDismiss: () -> Unit,
     onUpdate: () -> Unit = {}
 ) {
-    AlertDialog(
+    NothingDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraSmall,
         title = { Text("LAUNCH CONDITIONS", fontWeight = FontWeight.Bold) },

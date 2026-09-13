@@ -21,6 +21,7 @@ import com.khaled.frais.app.FraisData
 import com.khaled.frais.ui.components.AppIcon
 import com.khaled.frais.ui.components.GlyphState
 import com.khaled.frais.ui.components.NothingDivider
+import com.khaled.frais.ui.components.NothingDialog
 import com.khaled.frais.ui.home.viewmodel.HomeViewModel
 import com.khaled.frais.ui.theme.NothingRed
 import com.khaled.frais.utils.HPackages
@@ -45,7 +46,7 @@ fun AppOptionsDialog(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    AlertDialog(
+    NothingDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraSmall,
         title = { 
@@ -180,7 +181,7 @@ fun AppOptionsDialog(
     )
 
     if (showUninstallConfirm) {
-        AlertDialog(
+        NothingDialog(
             onDismissRequest = { showUninstallConfirm = false },
             title = { Text("UNINSTALL", fontWeight = FontWeight.Bold) },
             text = { Text("ARE YOU SURE YOU WANT TO UNINSTALL '${app.name.uppercase()}'?") },

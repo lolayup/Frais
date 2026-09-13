@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -17,9 +18,12 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.khaled.frais.app.AppInfo
+import com.khaled.frais.app.FraisData
 import com.khaled.frais.ui.components.AppIcon
 import com.khaled.frais.ui.theme.NothingRed
+import me.zhanghai.compose.preference.rememberPreferenceState
 
 @Composable
 internal fun AppItem(
@@ -34,6 +38,7 @@ internal fun AppItem(
 ) {
     val isFrozen = app.state == AppInfo.State.FROZEN
     val haptics = LocalHapticFeedback.current
+    val wallpaperUri by rememberPreferenceState(FraisData.WALLPAPER_URI, "")
 
     Column(
         modifier = modifier
@@ -94,12 +99,18 @@ internal fun AppItem(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = app.name.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    shadow = if (wallpaperUri.isNotEmpty()) androidx.compose.ui.graphics.Shadow(
+                        color = Color.Black.copy(alpha = 0.5f),
+                        offset = androidx.compose.ui.geometry.Offset(2f, 2f),
+                        blurRadius = 4f
+                    ) else null
+                ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 4.dp),
-                color = labelColor
+                color = if (labelColor == Color.Unspecified && wallpaperUri.isNotEmpty()) Color.White else labelColor
             )
         }
     }

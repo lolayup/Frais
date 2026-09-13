@@ -9,6 +9,7 @@ import androidx.core.view.WindowCompat
 import com.khaled.frais.features.activity.ActiveAppViewModel
 import com.khaled.frais.ui.FraisMainUI
 import com.khaled.frais.ui.home.viewmodel.HomeViewModel
+import com.khaled.frais.features.widgets.WidgetManager
 
 class MainActivity : AppCompatActivity() {
     private val homeViewModel: HomeViewModel by viewModels()
@@ -20,11 +21,18 @@ class MainActivity : AppCompatActivity() {
         @Suppress("DEPRECATION")
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
 
+        WidgetManager.startListening()
+
         setContent {
             me.zhanghai.compose.preference.ProvidePreferenceLocals {
                 FraisMainUI(homeViewModel = homeViewModel)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        WidgetManager.stopListening()
     }
 
     override fun onResume() {

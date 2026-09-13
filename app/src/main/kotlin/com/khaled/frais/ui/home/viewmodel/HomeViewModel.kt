@@ -146,6 +146,7 @@ class HomeViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
                                 isLaunchable = packageName in launchIntentPackages
                                 updateIsGame()
                                 autoTagIds = FilterClassifier.classify(this)
+                                updateSearchRaw()
                             }
                         }
                     }
@@ -174,9 +175,16 @@ class HomeViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
 
     fun updateFilteredApps() {
         val allApps = allAppsCached
+        val searchQuery = _uiState.value.searchQuery
+        val selectedFilters = _uiState.value.selectedFilters
+        val searchSystemFilter = _uiState.value.searchSystemFilter
+        val searchFrozenFilter = _uiState.value.searchFrozenFilter
 
         allApps.forEach { appInfo ->
             appInfo.updateState()
+            // Optimization: Update search raw only if needed, but here we do it to ensure accuracy
+            // In a larger app we might skip this if nothing changed.
+            appInfo.updateSearchRaw()
         }
 
         val tenHoursMs = 10 * 60 * 60 * 1000L
@@ -197,6 +205,7 @@ class HomeViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
             }
             appInfo.autoTagIds = tags
             appInfo.updateState()
+            appInfo.updateSearchRaw()
         }
 
         val tags = FraisData.tags
@@ -299,19 +308,10 @@ class HomeViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
             com.khaled.frais.utils.HShizuku.getRunningServices()
         } else emptyList()
 
-        val searchQuery = _uiState.value.searchQuery
-        val selectedFilters = _uiState.value.selectedFilters
-        val searchSystemFilter = _uiState.value.searchSystemFilter
-        val searchFrozenFilter = _uiState.value.searchFrozenFilter
-
         val filteredApps = apps.filter { app ->
             val matchesQuery = if (searchQuery.isEmpty()) true
             else {
-                val categoryNames = app.tagIds.mapNotNull { id ->
-                    FraisData.tags.find { it.id == id }?.name
-                }.joinToString(" ")
-                val searchRaw = "${app.name} ${app.packageName} ${app.description ?: ""} $categoryNames"
-                com.khaled.frais.utils.FuzzySearch.search(searchRaw, searchQuery)
+                com.khaled.frais.utils.FuzzySearch.search(app.searchRaw, searchQuery)
             }
             
             val matchesFilters = if (searchQuery.isNotEmpty() || selectedFilters.isEmpty()) true
@@ -335,12 +335,7 @@ class HomeViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
         val pinnedApps = apps.filter { app ->
             if (!app.pinned) return@filter false
             if (searchQuery.isEmpty()) return@filter true
-            
-            val categoryNames = app.tagIds.mapNotNull { id ->
-                FraisData.tags.find { it.id == id }?.name
-            }.joinToString(" ")
-            val searchRaw = "${app.name} ${app.packageName} ${app.description ?: ""} $categoryNames"
-            com.khaled.frais.utils.FuzzySearch.search(searchRaw, searchQuery)
+            com.khaled.frais.utils.FuzzySearch.search(app.searchRaw, searchQuery)
         }
 
         val mostUsed = if (selectedFilters.isEmpty() && searchQuery.isEmpty()) mostUsedApps else emptyList()
@@ -382,20 +377,29 @@ class HomeViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
                 hiddenApps = hiddenApps,
                 pinnedGridItems = pinnedGridItems,
                 mainGridItems = mainGridItems,
-                isInitialLoad = false
+                isInitialLoad = false,
+                searchQuery = searchQuery,
+                selectedFilters = selectedFilters,
+                searchFrozenFilter = searchFrozenFilter
             )
         }
     }
 
     private fun calculateGridItems(apps: List<AppInfo>, isPinned: Boolean): List<GridItem> {
         val list = mutableListOf<GridItem>()
+        val selectedFilters = _uiState.value.selectedFilters
+
         val groups = apps.groupBy { app ->
-            app.tagIds.firstOrNull { it != FraisData.TAG_ID_MOST_USED } ?: FraisData.TAG_ID_OTHER
+            val priorityTag = app.tagIds.firstOrNull { it in selectedFilters && it != FraisData.TAG_ID_MOST_USED }
+            priorityTag ?: app.tagIds.firstOrNull { it != FraisData.TAG_ID_MOST_USED } ?: FraisData.TAG_ID_OTHER
         }
         
         val processedTags = mutableSetOf<Int>()
         apps.forEach { app ->
-            val tagId = app.tagIds.firstOrNull { it != FraisData.TAG_ID_MOST_USED } ?: FraisData.TAG_ID_OTHER
+            val tagId = app.tagIds.firstOrNull { it in selectedFilters && it != FraisData.TAG_ID_MOST_USED }
+                ?: app.tagIds.firstOrNull { it != FraisData.TAG_ID_MOST_USED }
+                ?: FraisData.TAG_ID_OTHER
+                
             if (tagId !in processedTags) {
                 val group = (groups[tagId] ?: emptyList()).sortedWith(
                     compareByDescending<AppInfo> { it.state != AppInfo.State.FROZEN }

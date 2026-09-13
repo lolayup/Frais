@@ -19,7 +19,7 @@ android {
     namespace = "com.khaled.frais"
     compileSdk = 36
 
-    val vName = "1.8.9"
+    val vName = "2.0.0"
     defaultConfig {
         applicationId = "com.khaled.frais"
         minSdk = 23

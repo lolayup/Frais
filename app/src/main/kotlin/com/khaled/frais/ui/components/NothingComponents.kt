@@ -2,6 +2,10 @@ package com.khaled.frais.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -19,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -159,28 +165,32 @@ fun Modifier.rainDrops(
     }
 }
 
-fun Modifier.nothingNoise(alpha: Float? = null): Modifier = this.drawWithContent {
-    drawContent()
-    // Use system time for dynamic grain
-    val seed = (System.currentTimeMillis() / 80).toInt() 
-    val random = Random(seed)
-    val points = mutableListOf<Offset>()
-    val density = 0.0005f
-    val numPoints = (size.width * size.height * density).toInt().coerceIn(1000, 5000)
-    
+fun Modifier.nothingNoise(alpha: Float? = null): Modifier = composed {
     val grainAlpha = alpha ?: com.khaled.frais.app.FraisData.grainIntensity
-
-    for (i in 0 until numPoints) {
-        points.add(Offset(random.nextFloat() * size.width, random.nextFloat() * size.height))
+    val numPoints = 1000
+    val points = remember { 
+        val list = mutableListOf<Offset>()
+        repeat(numPoints) { list.add(Offset.Zero) }
+        list
     }
     
-    drawPoints(
-        points = points,
-        pointMode = PointMode.Points,
-        color = Color.White.copy(alpha = grainAlpha),
-        strokeWidth = 1.5f,
-        blendMode = BlendMode.Screen
-    )
+    this.drawWithContent {
+        drawContent()
+        val seed = (System.currentTimeMillis() / 80).toInt()
+        val random = Random(seed)
+        
+        for (i in 0 until numPoints) {
+            points[i] = Offset(random.nextFloat() * size.width, random.nextFloat() * size.height)
+        }
+        
+        drawPoints(
+            points = points,
+            pointMode = PointMode.Points,
+            color = Color.White.copy(alpha = grainAlpha),
+            strokeWidth = 1.5f,
+            blendMode = BlendMode.Screen
+        )
+    }
 }
 
 fun Modifier.nothingDots(color: Color = Color.White.copy(alpha = 0.05f)): Modifier = this.drawWithContent {
@@ -285,6 +295,83 @@ fun NothingCard(
             ),
             content = content
         )
+    }
+}
+
+@Composable
+fun NothingDialog(
+    onDismissRequest: () -> Unit,
+    title: @Composable (() -> Unit)? = null,
+    text: @Composable (() -> Unit)? = null,
+    confirmButton: @Composable (() -> Unit)? = null,
+    dismissButton: @Composable (() -> Unit)? = null,
+    shape: Shape = MaterialTheme.shapes.extraSmall
+) {
+    Popup(
+        onDismissRequest = onDismissRequest,
+        properties = PopupProperties(
+            focusable = true,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        ),
+        alignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Transparent)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onDismissRequest() },
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .padding(16.dp)
+                    .clickable(enabled = false) {},
+                shape = shape,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 12.dp,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    if (title != null) {
+                        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+                            ProvideTextStyle(MaterialTheme.typography.headlineSmall) {
+                                title()
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    
+                    if (text != null) {
+                        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
+                            ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
+                                text()
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (dismissButton != null) {
+                            dismissButton()
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        if (confirmButton != null) {
+                            confirmButton()
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
