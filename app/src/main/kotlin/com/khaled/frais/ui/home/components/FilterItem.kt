@@ -20,6 +20,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.khaled.frais.app.AppInfo
+import com.khaled.frais.ui.components.FraisIllustration
 import com.khaled.frais.ui.home.viewmodel.FilterWithCount
 import com.khaled.frais.ui.theme.NothingRed
 
@@ -29,6 +31,7 @@ fun FilterItem(
     isSelected: Boolean,
     showPulseDot: Boolean,
     showLabel: Boolean,
+    apps: List<AppInfo>,
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onRemove: () -> Unit
@@ -55,7 +58,12 @@ fun FilterItem(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(filter.icon, fontSize = 14.sp)
+                // Use FraisIllustration for built-in categories, otherwise fallback to text/emoji
+                if (filter.isBuiltIn) {
+                    FraisIllustration(name = filter.name, size = 18.dp)
+                } else {
+                    Text(filter.icon, fontSize = 14.sp)
+                }
                 
                 if (showLabel) {
                     Spacer(Modifier.width(6.dp))

@@ -29,13 +29,14 @@ internal fun AppItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     labelColor: Color = Color.Unspecified,
-    isGlyphActive: Boolean = false
+    isGlyphActive: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     val isFrozen = app.state == AppInfo.State.FROZEN
     val haptics = LocalHapticFeedback.current
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,
@@ -58,28 +59,16 @@ internal fun AppItem(
             )
             
             if (app.isSystemApp) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.6f),
-                    shape = MaterialTheme.shapes.extraSmall,
-                    modifier = Modifier.align(Alignment.BottomEnd).size(iconSize.div(3f))
+                Box(
+                    modifier = Modifier.align(Alignment.BottomEnd).size(iconSize.div(3f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Shield,
-                            null,
-                            tint = Color.White,
-                            modifier = Modifier.padding(2.dp)
-                        )
-                        if (!app.isSafeToFreeze) {
-                            Box(
-                                modifier = Modifier
-                                    .size(4.dp)
-                                    .background(NothingRed, CircleShape)
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 1.dp, y = (-1).dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        Icons.Default.Shield,
+                        null,
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(2.dp)
+                    )
                 }
             }
 

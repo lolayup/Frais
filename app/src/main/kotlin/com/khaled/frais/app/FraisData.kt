@@ -12,7 +12,7 @@ import org.json.JSONObject
 
 object FraisData {
     const val URL_GITHUB = "https://github.com/khaled0528/Frais"
-    const val VERSION = "1.8.9"
+    const val VERSION = "2.0.0-beta"
     private const val KEY_ID = "id"
     private const val KEY_PINNED = "pinned"
     private const val KEY_WHITELISTED = "whitelisted"
@@ -100,8 +100,13 @@ object FraisData {
     const val DELETED_TAGS = "deleted_tags"
     const val COLLAPSED_CATEGORIES = "collapsed_categories"
     const val CLOSE_ALL_PROTECTED = "close_all_protected"
+    const val ACTIVE_SCREEN = "active_screen"
 
-    private val sp by lazy { PreferenceManager.getDefaultSharedPreferences(app) }
+    private val sp by lazy { 
+        PreferenceManager.getDefaultSharedPreferences(app).apply {
+            registerOnSharedPreferenceChangeListener { _, _ -> produceBackup() }
+        }
+    }
     var sortBy: String
         get() = sp.getString(SORT_BY, SORT_NAME) ?: SORT_NAME
         set(value) = sp.edit { putString(SORT_BY, value) }
@@ -158,7 +163,7 @@ object FraisData {
         set(value) = sp.edit { putBoolean(SHOW_NON_LAUNCHABLE_APPS, value) }
 
     var showSystemApps
-        get() = sp.getBoolean(SHOW_SYSTEM_APPS, false)
+        get() = sp.getBoolean(SHOW_SYSTEM_APPS, true)
         set(value) = sp.edit { putBoolean(SHOW_SYSTEM_APPS, value) }
 
     var homeTagsCollapsed
@@ -185,10 +190,88 @@ object FraisData {
         get() = sp.getStringSet(COLLAPSED_CATEGORIES, emptySet()) ?: emptySet()
         set(value) = sp.edit { putStringSet(COLLAPSED_CATEGORIES, value) }
 
+    var activeScreen: Int
+        get() = sp.getInt(ACTIVE_SCREEN, 0)
+        set(value) = sp.edit { putInt(ACTIVE_SCREEN, value) }
+
     private val dir = "${app.filesDir.path}/v1"
     private val appsPath = "$dir/apps.json"
     private val tagsPath = "$dir/tags.json"
     private val widgetsPath = "$dir/widgets.json"
+
+    private val backupDir = "${android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS).path}/Frais"
+    private val backupPath = "$backupDir/config_backup.json"
+
+    fun init() {
+        if (!HFiles.exists(appsPath) && !HFiles.exists(tagsPath)) {
+            importBackup()
+        }
+    }
+
+    @Synchronized
+    private fun importBackup() {
+        runCatching {
+            val jsonText = HFiles.read(backupPath)
+            if (jsonText.isNullOrEmpty()) return
+            val root = JSONObject(jsonText)
+            
+            // Restore JSON files
+            if (!HFiles.exists(dir)) HFiles.createDirectories(dir)
+            if (root.has("apps")) HFiles.write(appsPath, root.getJSONArray("apps").toString())
+            if (root.has("tags")) HFiles.write(tagsPath, root.getJSONArray("tags").toString())
+            if (root.has("widgets")) HFiles.write(widgetsPath, root.getJSONArray("widgets").toString())
+            
+            // Restore Preferences
+            if (root.has("prefs")) {
+                val prefs = root.getJSONObject("prefs")
+                sp.edit {
+                    prefs.keys().forEach { key ->
+                        val value = prefs.get(key)
+                        when (value) {
+                            is Boolean -> putBoolean(key, value)
+                            is Int -> putInt(key, value)
+                            is Long -> putLong(key, value)
+                            is Float -> putFloat(key, value)
+                            is String -> putString(key, value)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Synchronized
+    private fun produceBackup() {
+        if (!sp.getBoolean("backup_enabled", true)) return
+        
+        runCatching {
+            if (!HFiles.exists(backupDir)) {
+                if (!HFiles.createDirectories(backupDir)) return
+            }
+            
+            val root = JSONObject()
+            
+            val appsJsonText = HFiles.read(appsPath)
+            if (!appsJsonText.isNullOrEmpty()) root.put("apps", JSONArray(appsJsonText))
+            
+            val tagsJsonText = HFiles.read(tagsPath)
+            if (!tagsJsonText.isNullOrEmpty()) root.put("tags", JSONArray(tagsJsonText))
+            
+            val widgetsJsonText = HFiles.read(widgetsPath)
+            if (!widgetsJsonText.isNullOrEmpty()) root.put("widgets", JSONArray(widgetsJsonText))
+            
+            val prefsJson = JSONObject()
+            sp.all.forEach { (key, value) ->
+                // Avoid backing up the backup state itself or extremely volatile things
+                if (value != null && key != "active_screen" && key != "is_initial_load") {
+                    prefsJson.put(key, value)
+                }
+            }
+            root.put("prefs", prefsJson)
+            
+            HFiles.write(backupPath, root.toString())
+        }
+    }
 
     data class Tag(
         val id: Int,
@@ -298,6 +381,7 @@ object FraisData {
             }
             toString()
         })
+        produceBackup()
     }
 
     const val TAG_ID_MOST_USED = -15
@@ -404,6 +488,7 @@ object FraisData {
             }
             toString()
         })
+        produceBackup()
     }
 
     @Synchronized
@@ -424,6 +509,7 @@ object FraisData {
             }
             toString()
         })
+        produceBackup()
     }
 
     @Synchronized

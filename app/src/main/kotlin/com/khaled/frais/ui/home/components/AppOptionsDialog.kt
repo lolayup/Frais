@@ -148,16 +148,6 @@ fun AppOptionsDialog(
                         modifier = buttonModifier
                     )
 
-                    if (app.isSystemApp) {
-                        CompactOptionButton(
-                            icon = Icons.Default.VerifiedUser,
-                            label = if (app.isSafeToFreeze) "REVOKE" else "SAFE",
-                            color = if (app.isSafeToFreeze) NothingRed else MaterialTheme.colorScheme.primary,
-                            onClick = { app.isSafeToFreeze = !app.isSafeToFreeze; onUpdate(); onDismiss() },
-                            modifier = buttonModifier
-                        )
-                    }
-
                     CompactOptionButton(
                         icon = Icons.Default.Refresh,
                         label = "REINSTALL",

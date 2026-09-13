@@ -13,6 +13,7 @@ class FraisApp : Application() {
     override fun onCreate() {
         super.onCreate()
         app = this
+        FraisData.init()
         if (!HTarget.S) setAppTheme(FraisData.appTheme)
         if (FraisData.workingMode.startsWith(FraisData.DHIZUKU)) HDhizuku.init()
         
@@ -29,7 +30,7 @@ class FraisApp : Application() {
                 activeActivities--
                 if (activeActivities == 0) {
                     // App went to background / closed
-                    HIcon.applyPendingIconState()
+                    // HIcon.applyPendingIconState() // TEMPORARILY DISABLED TO FIX NAVIGATION
                 }
             }
             override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}

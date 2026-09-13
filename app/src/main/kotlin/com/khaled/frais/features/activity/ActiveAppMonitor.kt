@@ -18,9 +18,7 @@ object ActiveAppMonitor {
         if (com.khaled.frais.app.AppManager.checkService()) {
             val shizukuActive = getActivePackagesViaShizuku()
             if (shizukuActive.isNotEmpty()) {
-                val foreground = getForegroundPackageViaUsageStats(context)
                 return shizukuActive.filter { pkg ->
-                    (pkg != foreground) && 
                     (pkg != context.packageName) && 
                     !isInputMethod(context, pkg)
                 }
@@ -38,8 +36,8 @@ object ActiveAppMonitor {
             val processes = am::class.java.getMethod("getRunningAppProcesses").invoke(am) as List<*>
             processes.mapNotNull {
                 val info = it as android.app.ActivityManager.RunningAppProcessInfo
-                // IMPORTANCE_PERCEPTIBLE (230) includes background music/services user can perceive
-                if (info.importance <= 230) {
+                // Include all processes that are not purely cached (<= 400)
+                if (info.importance <= 400) {
                     info.pkgList?.firstOrNull()
                 } else null
             }.distinct()
@@ -68,28 +66,23 @@ object ActiveAppMonitor {
 
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val endTime = System.currentTimeMillis()
-        val startTime = endTime - 1000 * 60 * 10 // Last 10 minutes
+        val startTime = endTime - 1000 * 60 * 30 // Last 30 minutes
 
         val events = usageStatsManager.queryEvents(startTime, endTime)
         val event = UsageEvents.Event()
         
         val lastEventTime = mutableMapOf<String, Long>()
-        var foregroundPackage: String? = null
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             val pkg = event.packageName ?: continue
             lastEventTime[pkg] = event.timeStamp
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                foregroundPackage = pkg
-            }
         }
 
         return lastEventTime.keys.filter { pkg ->
-            pkg != foregroundPackage && 
             pkg != context.packageName &&
             !isInputMethod(context, pkg) &&
-            (endTime - (lastEventTime[pkg] ?: 0L)) < 1000 * 60 * 5
+            (endTime - (lastEventTime[pkg] ?: 0L)) < 1000 * 60 * 30
         }.sortedByDescending { lastEventTime[it] }
     }
 }

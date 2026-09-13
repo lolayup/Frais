@@ -16,13 +16,15 @@ class AppInfo(
     initialStorageSize: Long = 0,
     var isLaunchable: Boolean = true,
     var isGame: Boolean = false,
-    var autoTagIds: List<Int> = emptyList()
+    var autoTagIds: List<Int> = emptyList(),
+    var description: String? = null
 ) {
     constructor(info: ApplicationInfo, label: String? = null) : this(
         packageName = info.packageName,
         initialName = label ?: info.packageName,
         applicationInfo = info,
-        isLaunchable = true
+        isLaunchable = true,
+        description = null
     )
 
     constructor(packageName: String) : this(

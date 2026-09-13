@@ -66,6 +66,15 @@ object HShizuku {
         false
     }
 
+    fun getRunningServices(max: Int = 100): List<String> = runCatching {
+        val am = asInterface("android.app.IActivityManager", Context.ACTIVITY_SERVICE)
+        val services = am::class.java.getMethod("getRunningServices", Int::class.java).invoke(am, max) as List<*>
+        services.mapNotNull {
+            val info = it as android.app.ActivityManager.RunningServiceInfo
+            info.service.packageName
+        }.distinct()
+    }.getOrElse { emptyList() }
+
     fun setAppDisabled(packageName: String, disabled: Boolean): Boolean {
         HPackages.getApplicationInfoOrNull(packageName) ?: return false
         if (disabled) forceStopApp(packageName)

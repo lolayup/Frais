@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.khaled.frais.app.AppInfo
 import com.khaled.frais.app.FraisData
 import com.khaled.frais.ui.components.AppIcon
+import com.khaled.frais.ui.components.FraisIllustration
 import com.khaled.frais.ui.components.GlyphState
 import com.khaled.frais.ui.components.NothingDivider
 import com.khaled.frais.ui.home.viewmodel.HomeViewModel
@@ -50,6 +51,10 @@ fun FilterEditDialog(
         shape = MaterialTheme.shapes.extraSmall,
         title = { 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (filter.isBuiltIn) {
+                    FraisIllustration(name = filter.name, size = 32.dp)
+                    Spacer(Modifier.width(12.dp))
+                }
                 Text("EDIT FILTER", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 if (!filter.isBuiltIn) {
                     IconButton(onClick = { 

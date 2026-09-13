@@ -1,5 +1,7 @@
 package com.khaled.frais.ui
 
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -65,8 +67,14 @@ import com.khaled.frais.app.FraisData
 import com.khaled.frais.ui.theme.NothingRed
 import com.khaled.frais.ui.components.NothingDivider
 import com.khaled.frais.ui.components.AppIcon
+import com.khaled.frais.ui.home.components.AppOptionsDialog
+import com.khaled.frais.ui.home.components.GroupFloatingWidget
+import com.khaled.frais.ui.home.viewmodel.GridItem
 import com.khaled.frais.utils.HIcon
+import com.khaled.frais.utils.HPackages
+import android.provider.Settings
 import androidx.compose.ui.unit.sp
+import me.zhanghai.compose.preference.rememberPreferenceState
 
 enum class SettingsState { Closed, Compact, Expanded }
 enum class NavigationMode { Private, Widgets }
@@ -121,7 +129,7 @@ fun FraisMainUI(
         FraisData.THEME_AMOLED
     )
 
-    val grainIntensity by me.zhanghai.compose.preference.rememberPreferenceState(
+    val grainIntensity by rememberPreferenceState(
         FraisData.GRAIN_INTENSITY,
         0.1f
     )
@@ -132,10 +140,13 @@ fun FraisMainUI(
         Screen.Games
     )
 
-    var isSearchActive by remember { mutableStateOf(false) }
-    var isGlyphPopupActive by remember { mutableStateOf(false) }
+    val isSearchActive by homeViewModel.isSearchActive.collectAsState()
+    val activeScreenIndex by homeViewModel.activeScreenIndex.collectAsState()
+    val navigationMode by homeViewModel.navigationMode.collectAsState()
+    val selectedGroup by homeViewModel.selectedGroup.collectAsState()
+    val selectedAppForDialog by homeViewModel.selectedAppForDialog.collectAsState()
+
     var settingsState by remember { mutableStateOf(SettingsState.Closed) }
-    var navigationMode by remember { mutableStateOf(NavigationMode.Widgets) }
     
     // Dynamic Icon Logic
     LaunchedEffect(uiState.actionableAppsCount, isPrivateSpaceAuthenticated) {
@@ -154,12 +165,26 @@ fun FraisMainUI(
         }
     }
     
-    val pagerState = rememberPagerState(pageCount = { screens.size })
+    val pagerState = rememberPagerState(
+        initialPage = activeScreenIndex,
+        pageCount = { screens.size }
+    )
     val coroutineScope = rememberCoroutineScope()
 
-    // Handle Go Home Event
+    // Sync pager state with ViewModel
+    LaunchedEffect(pagerState.currentPage) {
+        homeViewModel.setActiveScreenIndex(pagerState.currentPage)
+    }
+
+    // Handle Go Home Event (System Home Button / Swipe Up)
     LaunchedEffect(Unit) {
         homeViewModel.goHomeEvent.collect {
+            // Close all overlays when Home is triggered
+            if (selectedAppForDialog != null) homeViewModel.setSelectedAppForDialog(null)
+            if (selectedGroup != null) homeViewModel.setSelectedGroup(null)
+            if (isSearchActive) homeViewModel.setSearchActive(false)
+            if (settingsState != SettingsState.Closed) settingsState = SettingsState.Closed
+            
             if (pagerState.currentPage != 0) {
                 pagerState.animateScrollToPage(0)
             }
@@ -169,14 +194,18 @@ fun FraisMainUI(
     // Global Back Handling to prevent reinitialization
     BackHandler(enabled = true) {
         when {
-            isSearchActive -> isSearchActive = false
-            isGlyphPopupActive -> isGlyphPopupActive = false
+            selectedAppForDialog != null -> homeViewModel.setSelectedAppForDialog(null)
+            selectedGroup != null -> homeViewModel.setSelectedGroup(null)
+            isSearchActive -> homeViewModel.setSearchActive(false)
             settingsState == SettingsState.Expanded -> settingsState = SettingsState.Compact
             settingsState == SettingsState.Compact -> settingsState = SettingsState.Closed
             pagerState.currentPage != 0 -> {
                 coroutineScope.launch { pagerState.animateScrollToPage(0) }
             }
-            // Otherwise, consume it and do nothing to prevent the app from finishing/reinitializing
+            else -> {
+                // Do nothing on the home screen to prevent exiting or task switching
+                // The system will handle this as a "stay on home" action
+            }
         }
     }
 
@@ -193,6 +222,7 @@ fun FraisMainUI(
             ) {
                 Scaffold(
                     modifier = Modifier.nothingNoise(grainIntensity),
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     topBar = {
                         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
                             Row(
@@ -241,8 +271,7 @@ fun FraisMainUI(
                                         actionableAppsCount = uiState.actionableAppsCount,
                                         actionablePrivateAppsCount = uiState.actionablePrivateAppsCount,
                                         totalAppCount = uiState.totalAppsCount,
-                                        totalFilterCount = uiState.filters.size,
-                                        onClick = { isGlyphPopupActive = !isGlyphPopupActive }
+                                        totalFilterCount = uiState.filters.size
                                     )
                                 }
                                 
@@ -312,13 +341,12 @@ fun FraisMainUI(
             // 2. GLASS COMPONENTS: Sit outside/above the backdrop source to avoid recursion
 
             // Overlay to close active widgets/popups when clicking empty space
-            if (isGlyphPopupActive || settingsState != SettingsState.Closed) {
+            if (settingsState != SettingsState.Closed) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
                             detectTapGestures {
-                                isGlyphPopupActive = false
                                 if (settingsState != SettingsState.Closed) settingsState = SettingsState.Closed
                             }
                         }
@@ -333,11 +361,12 @@ fun FraisMainUI(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 100.dp)
+                    .imePadding()
                     .zIndex(1f)
             ) {
                 SearchPopup(
                     viewModel = homeViewModel,
-                    onClose = { isSearchActive = false }
+                    onClose = { homeViewModel.setSearchActive(false) }
                 )
             }
 
@@ -351,21 +380,6 @@ fun FraisMainUI(
                 }
             }
 
-            // Glyph Active Apps Popup (Emerging from top)
-            AnimatedVisibility(
-                visible = isGlyphPopupActive,
-                enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
-                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 160.dp)
-                    .zIndex(1f)
-            ) {
-                GlyphActiveAppsPopup(
-                    viewModel = homeViewModel,
-                    onClose = { isGlyphPopupActive = false }
-                )
-            }
 
             // Settings Sheet (Moved outside Scaffold to allow full-screen expansion)
             SettingsSheet(
@@ -384,7 +398,7 @@ fun FraisMainUI(
                 CompactDock(
                     currentScreen = currentScreen,
                     navigationMode = navigationMode,
-                    onNavigationModeChange = { navigationMode = it },
+                    onNavigationModeChange = { homeViewModel.setNavigationMode(it) },
                     onScreenSelect = { screen ->
                         coroutineScope.launch {
                             val targetScreen = if (screen == Screen.Widgets) Screen.PrivateSpace else screen
@@ -393,8 +407,7 @@ fun FraisMainUI(
                     },
                     onSettingsClick = { settingsState = SettingsState.Compact },
                     onSearchClick = { 
-                        if (!isSearchActive) isSearchActive = true
-                        else isSearchActive = false
+                        homeViewModel.setSearchActive(!isSearchActive)
                     },
                     viewModel = homeViewModel,
                     isPrivateAuthenticated = isPrivateSpaceAuthenticated,
@@ -404,6 +417,47 @@ fun FraisMainUI(
 
             // Full-screen Loading Overlay
             LoadingOverlay(isVisible = uiState.isInitialLoad)
+
+            val iconSizePref by rememberPreferenceState(FraisData.ICON_SIZE, "64")
+            val iconSize = (iconSizePref.toFloatOrNull() ?: 64f).dp
+            val showLabels by rememberPreferenceState(FraisData.SHOW_LABELS, true)
+
+            AnimatedVisibility(
+                visible = selectedGroup != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.9f),
+                exit = fadeOut() + scaleOut(targetScale = 0.9f)
+            ) {
+                selectedGroup?.let { group ->
+                    GroupFloatingWidget(
+                        title = group.title,
+                        apps = group.apps,
+                        viewModel = homeViewModel,
+                        iconSize = iconSize,
+                        showLabels = showLabels,
+                        onDismiss = { homeViewModel.setSelectedGroup(null) },
+                        onAppLongClick = { homeViewModel.setSelectedAppForDialog(it) }
+                    )
+                }
+            }
+
+            if (selectedAppForDialog != null) {
+                AppOptionsDialog(
+                    app = selectedAppForDialog!!,
+                    viewModel = homeViewModel,
+                    onDismiss = { homeViewModel.setSelectedAppForDialog(null) },
+                    onUpdate = { homeViewModel.updateFilteredApps() },
+                    onFreezeToggle = { app, frozen ->
+                        homeViewModel.setSelectedAppForDialog(null)
+                        homeViewModel.setAppFrozen(app, frozen) { success ->
+                            HUI.showToast(if (success) (if (frozen) "FROZEN ${app.name}" else "UNFROZEN ${app.name}") else "FAILED TO ${if (frozen) "FREEZE" else "UNFREEZE"} ${app.name}")
+                        }
+                    },
+                    onDetails = {
+                        HUI.startActivity(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, HPackages.packageUri(it.packageName))
+                        homeViewModel.setSelectedAppForDialog(null)
+                    }
+                )
+            }
         }
     }
 }
@@ -582,151 +636,26 @@ fun CompactDock(
     }
 }
 
-@Composable
-fun GlyphActiveAppsPopup(
-    viewModel: HomeViewModel,
-    onClose: () -> Unit
-) {
-    val context = LocalContext.current
-    val uiState by viewModel.uiState.collectAsState()
-    
-    val activeNormalApps by remember(uiState.allApps) {
-        derivedStateOf {
-            uiState.allApps.filter { app ->
-                !app.isPrivate &&
-                app.state != com.khaled.frais.app.AppInfo.State.FROZEN &&
-                        !app.isWhitelisted &&
-                        (!app.isSystemApp || app.isSafeToFreeze)
-            }.sortedByDescending { it.usageTime }
-        }
-    }
-
-    val activeSecuredAppsCount by remember(uiState.allApps) {
-        derivedStateOf {
-            uiState.allApps.count { app ->
-                app.isPrivate &&
-                app.state != com.khaled.frais.app.AppInfo.State.FROZEN
-            }
-        }
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .heightIn(max = 500.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shadowElevation = 8.dp
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "ACTIVE APPLICATIONS (${activeNormalApps.size + activeSecuredAppsCount})",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                if (activeNormalApps.isNotEmpty()) {
-                    TextButton(
-                        onClick = {
-                            viewModel.setAppsFrozen(activeNormalApps, true)
-                            // If only normal apps, maybe close?
-                            if (activeSecuredAppsCount == 0) onClose()
-                        },
-                        colors = ButtonDefaults.textButtonColors(contentColor = NothingRed)
-                    ) {
-                        Icon(Icons.Default.AcUnit, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("FREEZE ALL", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            NothingDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            if (activeNormalApps.isNotEmpty() || activeSecuredAppsCount > 0) {
-                LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                    if (activeSecuredAppsCount > 0) {
-                        item {
-                            ListItem(
-                                headlineContent = { 
-                                    Text(
-                                        "$activeSecuredAppsCount SECURED APPS ACTIVE", 
-                                        style = MaterialTheme.typography.labelMedium, 
-                                        fontWeight = FontWeight.Bold,
-                                        color = NothingRed
-                                    ) 
-                                },
-                                leadingContent = {
-                                    Icon(Icons.Default.Lock, null, tint = NothingRed, modifier = Modifier.size(32.dp))
-                                },
-                                supportingContent = {
-                                    Text("UNLOCK PRIVATE SPACE TO MANAGE", style = MaterialTheme.typography.labelSmall)
-                                },
-                                trailingContent = {
-                                    // Maybe a hint to navigate to private space
-                                    Icon(Icons.Default.ArrowForward, null, modifier = Modifier.size(16.dp))
-                                },
-                                modifier = Modifier.clickable {
-                                    onClose()
-                                    // We can't easily trigger navigation from here without more logic, 
-                                    // but we can at least close the popup.
-                                }
-                            )
-                            NothingDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        }
-                    }
-
-                    items(activeNormalApps) { app ->
-                        ListItem(
-                            headlineContent = { Text(app.name.uppercase(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) },
-                            leadingContent = {
-                                AppIcon(
-                                    info = app.applicationInfo,
-                                    size = 32.dp
-                                )
-                            },
-                            trailingContent = {
-                                IconButton(onClick = {
-                                    viewModel.setAppFrozen(app, true)
-                                }) {
-                                    Icon(Icons.Default.AcUnit, null, tint = NothingRed)
-                                }
-                            },
-                            modifier = Modifier.clickable {
-                                viewModel.launchApp(app.packageName, context)
-                                onClose()
-                            }
-                        )
-                    }
-                }
-            } else {
-                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("NO ACTIVE APPS TO OPTIMIZE", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                }
-            }
-            
-            TextButton(onClick = onClose, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Text("CLOSE", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}
 
 @Composable
 fun SearchPopup(
     viewModel: HomeViewModel,
     onClose: () -> Unit
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    val searchResults by remember(uiState.allApps, uiState.searchQuery) {
+        derivedStateOf {
+            if (uiState.searchQuery.isEmpty()) emptyList<AppInfo>()
+            else uiState.allApps.filter { app ->
+                app.name.contains(uiState.searchQuery, ignoreCase = true) || 
+                app.packageName.contains(uiState.searchQuery, ignoreCase = true)
+            }.sortedByDescending { it.usageTime }.take(10)
+        }
+    }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -738,13 +667,39 @@ fun SearchPopup(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            .heightIn(max = 500.dp),
+            .heightIn(max = 600.dp),
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 8.dp
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            if (searchResults.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    items(searchResults, key = { it.packageName }) { app ->
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 12.dp)
+                                .clickable {
+                                    viewModel.launchApp(app.packageName, context)
+                                    onClose()
+                                }
+                        ) {
+                            AppIcon(
+                                info = app.applicationInfo,
+                                size = 48.dp,
+                                grayscale = app.state == AppInfo.State.FROZEN
+                            )
+                        }
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
@@ -773,7 +728,7 @@ fun SettingsSheet(
     viewModel: HomeViewModel,
     onStateChange: (SettingsState) -> Unit
 ) {
-    val grainIntensity by me.zhanghai.compose.preference.rememberPreferenceState(
+    val grainIntensity by rememberPreferenceState(
         FraisData.GRAIN_INTENSITY,
         0.1f
     )

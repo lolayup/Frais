@@ -28,14 +28,15 @@ fun CategoryHeader(
     modifier: Modifier = Modifier,
     showSystemToggle: Boolean = false,
     isShowingSystem: Boolean = false,
-    onSystemToggle: () -> Unit = {}
+    onSystemToggle: () -> Unit = {},
+    showExpandIcon: Boolean = true
 ) {
     val rotation by animateFloatAsState(if (isCollapsed) -90f else 0f)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onToggle() }
+            .clickable(enabled = showExpandIcon) { onToggle() }
             .padding(16.dp, 8.dp)
     ) {
         Row(
@@ -68,12 +69,14 @@ fun CategoryHeader(
                     Spacer(Modifier.width(8.dp))
                 }
                 
-                Icon(
-                    imageVector = Icons.Default.ExpandLess,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp).rotate(rotation)
-                )
+                if (showExpandIcon) {
+                    Icon(
+                        imageVector = Icons.Default.ExpandLess,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp).rotate(rotation)
+                    )
+                }
             }
         }
         Spacer(Modifier.height(4.dp))

@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.BackHandler
 import com.khaled.frais.app.AppInfo
 import com.khaled.frais.app.FraisData
 import com.khaled.frais.features.activity.ActiveAppViewModel
@@ -28,6 +29,7 @@ import com.khaled.frais.features.activity.ActiveAppsWidget
 import com.khaled.frais.features.widgets.WidgetStack
 import com.khaled.frais.ui.components.*
 import com.khaled.frais.ui.home.components.*
+import com.khaled.frais.ui.home.viewmodel.GridItem
 import com.khaled.frais.ui.home.viewmodel.HomeViewModel
 import com.khaled.frais.ui.theme.NothingRed
 import com.khaled.frais.utils.*
@@ -42,123 +44,66 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    var selectedAppForDialog by remember { mutableStateOf<AppInfo?>(null) }
     var editingFilter by remember { mutableStateOf<FraisData.Tag?>(null) }
 
     val gridColumnsPref by rememberPreferenceState(FraisData.GRID_COLUMNS, "4")
     val iconSizePref by rememberPreferenceState(FraisData.ICON_SIZE, "64")
+    val iconSize = (iconSizePref.toFloatOrNull() ?: 64f).dp
     val showLabelsPref by rememberPreferenceState(FraisData.SHOW_LABELS, true)
     val showFilterLabelsPref by rememberPreferenceState(FraisData.SHOW_FILTER_LABELS, true)
     val spacingTypePref by rememberPreferenceState(FraisData.SPACING_TYPE, "comfortable")
     val grainIntensityPref by rememberPreferenceState(FraisData.GRAIN_INTENSITY, 0.1f)
     var isFavoritesCollapsed by rememberPreferenceState(FraisData.HOME_FAVORITES_COLLAPSED, false)
     var isMostUsedCollapsed by rememberPreferenceState("home_most_used_collapsed", false)
-    val showSystemAppsPref by rememberPreferenceState(FraisData.SHOW_SYSTEM_APPS, false)
-    val hideFiltersPref by rememberPreferenceState(FraisData.HIDE_FILTERS, false)
-    val groupByCategoryPref by rememberPreferenceState(FraisData.GROUP_BY_CATEGORY, false)
-
-    var collapsedCategories by remember { mutableStateOf(FraisData.collapsedCategories) }
-
-    val filteredApps by remember(uiState.apps, uiState.searchQuery, uiState.selectedFilters, uiState.searchSystemFilter, uiState.searchFrozenFilter) {
-        derivedStateOf {
-            uiState.apps.filter { app ->
-                val matchesQuery = if (uiState.searchQuery.isEmpty()) true
-                else app.name.contains(uiState.searchQuery, ignoreCase = true) || app.packageName.contains(uiState.searchQuery, ignoreCase = true)
-                
-                val matchesFilters = if (uiState.searchQuery.isNotEmpty() || uiState.selectedFilters.isEmpty()) true
-                else uiState.selectedFilters.any { it in app.tagIds }
-
-                val matchesSystem = when (uiState.searchSystemFilter) {
-                    "user" -> !app.isSystemApp
-                    "system" -> app.isSystemApp
-                    else -> true
-                }
-
-                val matchesFrozen = when (uiState.searchFrozenFilter) {
-                    "frozen" -> app.state == AppInfo.State.FROZEN
-                    "unfrozen" -> app.state == AppInfo.State.UNFROZEN
-                    else -> true
-                }
-
-                matchesQuery && matchesFilters && matchesSystem && matchesFrozen
-            }
-        }
-    }
-
-    val pinnedApps by remember(uiState.apps, uiState.searchQuery) {
-        derivedStateOf {
-            uiState.apps.filter { app ->
-                app.pinned && (uiState.searchQuery.isEmpty() ||
-                        app.name.contains(uiState.searchQuery, ignoreCase = true) ||
-                        app.packageName.contains(uiState.searchQuery, ignoreCase = true))
-            }
-        }
-    }
-    
-    val otherApps by remember(filteredApps, pinnedApps, uiState.selectedFilters, uiState.searchQuery, uiState.mostUsedApps) {
-        derivedStateOf {
-            val mostUsed = if (uiState.selectedFilters.isEmpty() && uiState.searchQuery.isEmpty()) uiState.mostUsedApps else emptyList()
-            filteredApps.filter { it !in pinnedApps && it !in mostUsed }
-        }
-    }
-
-    val groupedApps by remember(otherApps, uiState.filters, groupByCategoryPref) {
-        derivedStateOf {
-            if (!groupByCategoryPref) emptyMap<FraisData.Tag, List<AppInfo>>()
-            else {
-                val groups = mutableMapOf<Int, MutableList<AppInfo>>()
-                otherApps.forEach { app ->
-                    val tagId = app.tagIds.firstOrNull { it != FraisData.TAG_ID_MOST_USED } ?: FraisData.TAG_ID_OTHER
-                    groups.getOrPut(tagId) { mutableListOf() }.add(app)
-                }
-                
-                uiState.filters.map { it.filter }
-                    .filter { it.id in groups.keys }
-                    .associateWith { groups[it.id]!! }
-            }
-        }
-    }
 
     val gridState = rememberLazyGridState()
 
-    LaunchedEffect(uiState.apps) {
-        if (uiState.apps.isNotEmpty() && gridState.firstVisibleItemIndex == 0) {
-            gridState.scrollToItem(2)
+    fun editGroup(item: GridItem.Group) {
+        val tagId = when {
+            item.id.startsWith("pinned_tag_") -> item.id.substringAfter("pinned_tag_").toIntOrNull()
+            item.id.startsWith("main_tag_") -> item.id.substringAfter("main_tag_").toIntOrNull()
+            item.id.startsWith("tag_") -> item.id.substringAfter("tag_").toIntOrNull()
+            else -> null
+        }
+        
+        if (tagId != null) {
+            val tag = FraisData.tags.find { it.id == tagId }
+            if (tag != null) {
+                editingFilter = tag
+            }
         }
     }
 
-    Scaffold { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().nothingNoise(grainIntensityPref).nothingDots()) {
-            val gridColumns = gridColumnsPref.toIntOrNull() ?: 4
-            val iconSize = (iconSizePref.toFloatOrNull() ?: 64f).dp
-            val showLabels = showLabelsPref
-            val itemSpacing = when (spacingTypePref) {
-                "compact" -> 2.dp
-                "spacious" -> 16.dp
-                else -> 8.dp
-            }
+    Box(modifier = Modifier.fillMaxSize().nothingNoise(grainIntensityPref).nothingDots()) {
+        val gridColumns = gridColumnsPref.toIntOrNull() ?: 4
+        val showLabels = showLabelsPref
+        val itemSpacing = when (spacingTypePref) {
+            "compact" -> 2.dp
+            "spacious" -> 16.dp
+            else -> 8.dp
+        }
 
-            var showUsageWarning by remember { mutableStateOf(false) }
-            LaunchedEffect(uiState.isUsagePermissionGranted) {
-                if (!uiState.isUsagePermissionGranted) {
-                    kotlinx.coroutines.delay(1000)
-                    showUsageWarning = true
-                } else {
-                    showUsageWarning = false
-                }
+        var showUsageWarning by remember { mutableStateOf(false) }
+        LaunchedEffect(uiState.isUsagePermissionGranted) {
+            if (!uiState.isUsagePermissionGranted) {
+                kotlinx.coroutines.delay(1000)
+                showUsageWarning = true
+            } else {
+                showUsageWarning = false
             }
+        }
 
-            LazyVerticalGrid(
-                state = gridState,
-                columns = GridCells.Fixed(gridColumns),
-                contentPadding = PaddingValues(
-                    top = 16.dp,
-                    bottom = paddingValues.calculateBottomPadding() + 100.dp
-                ),
-                horizontalArrangement = Arrangement.spacedBy(itemSpacing),
-                verticalArrangement = Arrangement.spacedBy(itemSpacing),
-                modifier = Modifier.fillMaxSize()
-            ) {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(gridColumns),
+            contentPadding = PaddingValues(
+                top = 16.dp,
+                bottom = 200.dp
+            ),
+            horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+            verticalArrangement = Arrangement.spacedBy(itemSpacing),
+            modifier = Modifier.fillMaxSize()
+        ) {
                 // 1. ACTIVE APPS
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     ActiveAppsWidget(
@@ -176,46 +121,7 @@ fun HomeScreen(
                     )
                 }
 
-                if (!hideFiltersPref) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("FILTERS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            }
-                            
-                            if (uiState.filters.isNotEmpty()) {
-                                LazyHorizontalStaggeredGrid(
-                                    rows = StaggeredGridCells.Fixed(2),
-                                    modifier = Modifier.fillMaxWidth().height(88.dp),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                                    horizontalItemSpacing = 8.dp,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(uiState.filters.filter { it.filter.isEnabled }, key = { "full_${it.filter.id}" }) { filterWithCount ->
-                                        FilterItem(
-                                            filterWithCount = filterWithCount,
-                                            isSelected = filterWithCount.filter.id in uiState.selectedFilters,
-                                            showPulseDot = true,
-                                            showLabel = showFilterLabelsPref,
-                                            onClick = { viewModel.toggleTagSelection(filterWithCount.filter.id) },
-                                            onEdit = { editingFilter = filterWithCount.filter },
-                                            onRemove = {
-                                                FraisData.deleteTag(filterWithCount.filter.id)
-                                                viewModel.refresh()
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (pinnedApps.isEmpty() && otherApps.isEmpty()) {
+                if (uiState.pinnedGridItems.isEmpty() && uiState.mainGridItems.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -226,26 +132,58 @@ fun HomeScreen(
                         }
                     }
                 } else {
-                    if (pinnedApps.isNotEmpty()) {
+                    if (uiState.pinnedGridItems.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             CategoryHeader(
-                                title = "FAVORITES (${pinnedApps.size})",
+                                title = "FAVORITES (${uiState.pinnedGridItems.size})",
                                 isCollapsed = isFavoritesCollapsed,
                                 onToggle = { isFavoritesCollapsed = !isFavoritesCollapsed }
                             )
                         }
                         
                         if (!isFavoritesCollapsed) {
-                            items(pinnedApps, key = { "pinned_${it.packageName}" }) { app ->
-                                AppItem(
-                                    app = app,
-                                    iconSize = iconSize,
-                                    showLabel = showLabels,
-                                    onClick = { viewModel.launchApp(app.packageName, context) },
-                                    onLongClick = { selectedAppForDialog = app },
-                                    labelColor = NothingRed,
-                                    isGlyphActive = uiState.actionableAppsCount > 0 || uiState.actionablePrivateAppsCount > 0
-                                )
+                            items(uiState.pinnedGridItems, key = { item ->
+                                when (item) {
+                                    is GridItem.App -> "pinned_${item.app.packageName}"
+                                    is GridItem.Group -> "pinned_group_${item.id}"
+                                }
+                            }) { item ->
+                                when (item) {
+                                    is GridItem.App -> {
+                                        AppItem(
+                                            app = item.app,
+                                            iconSize = iconSize,
+                                            showLabel = showLabels,
+                                            onClick = { viewModel.launchApp(item.app.packageName, context) },
+                                            onLongClick = { viewModel.setSelectedAppForDialog(item.app) },
+                                            labelColor = NothingRed,
+                                            isGlyphActive = uiState.actionableAppsCount > 0 || uiState.actionablePrivateAppsCount > 0
+                                        )
+                                    }
+                                    is GridItem.Group -> {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            StackedAppToggle(
+                                                items = item.apps.take(3).map { app ->
+                                                    @Composable {
+                                                        AppIcon(
+                                                            info = app.applicationInfo,
+                                                            size = iconSize,
+                                                            grayscale = app.state == AppInfo.State.FROZEN
+                                                        )
+                                                    }
+                                                },
+                                                isExpanded = false,
+                                                onToggle = { viewModel.setSelectedGroup(item) },
+                                                onLongClick = { editGroup(item) },
+                                                size = iconSize,
+                                                categoryName = item.title
+                                            )
+                                            item.title?.let {
+                                                Text(it.uppercase(), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
                         }
@@ -267,7 +205,7 @@ fun HomeScreen(
                                     iconSize = iconSize,
                                     showLabel = showLabels,
                                     onClick = { viewModel.launchApp(app.packageName, context) },
-                                    onLongClick = { selectedAppForDialog = app },
+                                    onLongClick = { viewModel.setSelectedAppForDialog(app) },
                                     isGlyphActive = uiState.actionableAppsCount > 0 || uiState.actionablePrivateAppsCount > 0
                                 )
                             }
@@ -275,86 +213,60 @@ fun HomeScreen(
                         }
                     }
 
-                    if (otherApps.isNotEmpty()) {
-                        if (groupByCategoryPref && uiState.selectedFilters.isEmpty() && uiState.searchQuery.isEmpty()) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val isShowingSystem = uiState.searchSystemFilter == "all"
-                                    IconButton(
-                                        onClick = { viewModel.toggleShowSystemApps(!isShowingSystem) },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isShowingSystem) Icons.Default.Dns else Icons.Default.Circle,
-                                            contentDescription = "System Apps",
-                                            tint = if (isShowingSystem) NothingRed else MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
+                    if (uiState.mainGridItems.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            val activeFilterNames = uiState.filters.filter { it.filter.id in uiState.selectedFilters }.map { it.filter.name.uppercase() }
+                            val title = if (activeFilterNames.isEmpty()) "MAIN APPLICATIONS" else activeFilterNames.joinToString(" + ")
+                            
+                            CategoryHeader(
+                                title = title,
+                                isCollapsed = false,
+                                onToggle = {},
+                                showSystemToggle = false,
+                                showExpandIcon = false
+                            )
+                        }
+
+                        items(uiState.mainGridItems, key = { item ->
+                            when (item) {
+                                is GridItem.App -> "main_${item.app.packageName}"
+                                is GridItem.Group -> "main_group_${item.id}"
                             }
-
-                            groupedApps.forEach { (tag, apps) ->
-                                val tagIdStr = tag.id.toString()
-                                val isCollapsed = tagIdStr in collapsedCategories
-
-                                item(span = { GridItemSpan(maxLineSpan) }) {
-                                    CategoryHeader(
-                                        title = "${tag.icon} ${tag.name}",
-                                        isCollapsed = isCollapsed,
-                                        onToggle = {
-                                            val newSet = collapsedCategories.toMutableSet()
-                                            if (isCollapsed) newSet.remove(tagIdStr) else newSet.add(tagIdStr)
-                                            collapsedCategories = newSet
-                                            FraisData.collapsedCategories = newSet
-                                        }
+                        }) { item ->
+                            when (item) {
+                                is GridItem.App -> {
+                                    AppItem(
+                                        app = item.app,
+                                        iconSize = iconSize,
+                                        showLabel = showLabels,
+                                        onClick = { viewModel.launchApp(item.app.packageName, context) },
+                                        onLongClick = { viewModel.setSelectedAppForDialog(item.app) },
+                                        isGlyphActive = uiState.actionableAppsCount > 0 || uiState.actionablePrivateAppsCount > 0
                                     )
                                 }
-                                
-                                if (!isCollapsed) {
-                                    items(apps, key = { "${tag.id}_${it.packageName}" }) { app ->
-                                        AppItem(
-                                            app = app,
-                                            iconSize = iconSize,
-                                            showLabel = showLabels,
-                                            onClick = { viewModel.launchApp(app.packageName, context) },
-                                            onLongClick = { selectedAppForDialog = app },
-                                            isGlyphActive = uiState.actionableAppsCount > 0 || uiState.actionablePrivateAppsCount > 0
+                                is GridItem.Group -> {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        StackedAppToggle(
+                                            items = item.apps.take(3).map { app ->
+                                                @Composable {
+                                                    AppIcon(
+                                                        info = app.applicationInfo,
+                                                        size = iconSize,
+                                                        grayscale = app.state == AppInfo.State.FROZEN
+                                                    )
+                                                }
+                                            },
+                                            isExpanded = false,
+                                            onToggle = { viewModel.setSelectedGroup(item) },
+                                            onLongClick = { editGroup(item) },
+                                            size = iconSize,
+                                            categoryName = item.title
                                         )
+                                        item.title?.let {
+                                            Text(it.uppercase(), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp)
+                                        }
                                     }
                                 }
-                                
-                                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
-                            }
-                        } else {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                val activeFilterNames = uiState.filters.filter { it.filter.id in uiState.selectedFilters }.map { it.filter.name.uppercase() }
-                                val title = if (activeFilterNames.isEmpty()) "MAIN APPLICATIONS" else activeFilterNames.joinToString(" + ")
-                                val isShowingSystem = uiState.searchSystemFilter == "all"
-                                
-                                CategoryHeader(
-                                    title = title,
-                                    isCollapsed = false,
-                                    onToggle = {}, // Header is static in non-grouped mode for now
-                                    showSystemToggle = true,
-                                    isShowingSystem = isShowingSystem,
-                                    onSystemToggle = { viewModel.toggleShowSystemApps(!isShowingSystem) }
-                                )
-                            }
-
-                            items(otherApps, key = { it.packageName }) { app ->
-                                AppItem(
-                                    app = app,
-                                    iconSize = iconSize,
-                                    showLabel = showLabels,
-                                    onClick = { viewModel.launchApp(app.packageName, context) },
-                                    onLongClick = { selectedAppForDialog = app },
-                                    isGlyphActive = uiState.actionableAppsCount > 0 || uiState.actionablePrivateAppsCount > 0
-                                )
                             }
                         }
                     }
@@ -380,7 +292,6 @@ fun HomeScreen(
                 
                 item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(32.dp)) }
             }
-        }
 
         if (editingFilter != null) {
             FilterEditDialog(
@@ -388,25 +299,6 @@ fun HomeScreen(
                 apps = uiState.apps,
                 viewModel = viewModel,
                 onDismiss = { editingFilter = null; viewModel.refresh(force = false) }
-            )
-        }
-
-        if (selectedAppForDialog != null) {
-            AppOptionsDialog(
-                app = selectedAppForDialog!!,
-                viewModel = viewModel,
-                onDismiss = { selectedAppForDialog = null },
-                onUpdate = { viewModel.updateFilteredApps() },
-                onFreezeToggle = { app, frozen ->
-                    selectedAppForDialog = null
-                    viewModel.setAppFrozen(app, frozen) { success ->
-                        HUI.showToast(if (success) (if (frozen) "FROZEN ${app.name}" else "UNFROZEN ${app.name}") else "FAILED TO ${if (frozen) "FREEZE" else "UNFREEZE"} ${app.name}")
-                    }
-                },
-                onDetails = {
-                    HUI.startActivity(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, HPackages.packageUri(it.packageName))
-                    selectedAppForDialog = null
-                }
             )
         }
     }

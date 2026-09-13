@@ -57,9 +57,6 @@ fun SettingsScreen(
     var gridColumns by rememberPreferenceState(FraisData.GRID_COLUMNS, "4")
     var iconSize by rememberPreferenceState(FraisData.ICON_SIZE, "64")
     var showLabels by rememberPreferenceState(FraisData.SHOW_LABELS, true)
-    var hideFilters by rememberPreferenceState(FraisData.HIDE_FILTERS, false)
-    var groupByCategory by rememberPreferenceState(FraisData.GROUP_BY_CATEGORY, false)
-    var showFilterLabels by rememberPreferenceState(FraisData.SHOW_FILTER_LABELS, true)
     var spacingType by rememberPreferenceState(FraisData.SPACING_TYPE, "comfortable")
     var appTheme by rememberPreferenceState(FraisData.APP_THEME, FraisData.THEME_AMOLED)
     var grainIntensity by rememberPreferenceState(FraisData.GRAIN_INTENSITY, 0.1f)
@@ -571,30 +568,6 @@ fun SettingsScreen(
                         description = "DISPLAY APP NAMES BELOW ICONS"
                     ) {
                         Switch(checked = showLabels, onCheckedChange = { showLabels = it })
-                    }
-                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem(
-                        title = "HIDE FILTERS",
-                        description = "REMOVE FILTERS WIDGET FROM HOME"
-                    ) {
-                        Switch(checked = hideFilters, onCheckedChange = { hideFilters = it })
-                    }
-                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem(
-                        title = "GROUP BY CATEGORY",
-                        description = "ORGANIZE HOME SCREEN BY APP TYPE"
-                    ) {
-                        Switch(checked = groupByCategory, onCheckedChange = { 
-                            groupByCategory = it 
-                            viewModel.updateFilteredApps()
-                        })
-                    }
-                    NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem(
-                        title = "SHOW FILTER LABELS",
-                        description = "DISPLAY NAMES ON FILTER TAGS"
-                    ) {
-                        Switch(checked = showFilterLabels, onCheckedChange = { showFilterLabels = it })
                     }
                     NothingDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     Column(modifier = Modifier.padding(16.dp)) {

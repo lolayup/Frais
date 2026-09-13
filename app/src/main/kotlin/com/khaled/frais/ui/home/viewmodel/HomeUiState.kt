@@ -10,6 +10,11 @@ data class FilterWithCount(
     val actionableRunningCount: Int
 )
 
+sealed class GridItem {
+    data class App(val app: AppInfo) : GridItem()
+    data class Group(val id: String, val apps: List<AppInfo>, val title: String? = null) : GridItem()
+}
+
 data class HomeUiState(
     val apps: List<AppInfo> = emptyList(),
     val privateApps: List<AppInfo> = emptyList(),
@@ -39,9 +44,12 @@ data class HomeUiState(
     val actionablePrivateAppsCount: Int = 0,
     val totalUserAppsCount: Int = 0,
     val totalAppsCount: Int = 0,
+    val runningServices: List<String> = emptyList(),
     val transientGlyphState: GlyphState? = null,
     val allApps: List<AppInfo> = emptyList(),
     val mostUsedApps: List<AppInfo> = emptyList(),
     val hiddenApps: List<AppInfo> = emptyList(),
+    val pinnedGridItems: List<GridItem> = emptyList(),
+    val mainGridItems: List<GridItem> = emptyList(),
     val isInitialLoad: Boolean = true
 )

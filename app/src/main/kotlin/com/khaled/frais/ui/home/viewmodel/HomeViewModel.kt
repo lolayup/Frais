@@ -1,6 +1,7 @@
 package com.khaled.frais.ui.home.viewmodel
 
 import android.content.Intent
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.khaled.frais.FraisApp.Companion.app
@@ -23,14 +24,56 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class HomeViewModel : ViewModel() {
+class HomeViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeUiState())
+    private val _uiState = MutableStateFlow(HomeUiState(
+        searchQuery = savedStateHandle.get<String>("search_query") ?: ""
+    ))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private val _isPrivateSpaceAuthenticated = MutableStateFlow(false)
     val isPrivateSpaceAuthenticated: StateFlow<Boolean> =
         _isPrivateSpaceAuthenticated.asStateFlow()
+
+    private val _isSearchActive = MutableStateFlow(savedStateHandle.get<Boolean>("is_search_active") ?: false)
+    val isSearchActive = _isSearchActive.asStateFlow()
+
+    private val _activeScreenIndex = MutableStateFlow(FraisData.activeScreen)
+    val activeScreenIndex = _activeScreenIndex.asStateFlow()
+
+    private val _navigationMode = MutableStateFlow(
+        savedStateHandle.get<com.khaled.frais.ui.NavigationMode>("navigation_mode") ?: com.khaled.frais.ui.NavigationMode.Widgets
+    )
+    val navigationMode = _navigationMode.asStateFlow()
+
+    private val _selectedGroup = MutableStateFlow<GridItem.Group?>(null)
+    val selectedGroup = _selectedGroup.asStateFlow()
+
+    private val _selectedAppForDialog = MutableStateFlow<AppInfo?>(null)
+    val selectedAppForDialog = _selectedAppForDialog.asStateFlow()
+
+    fun setSearchActive(active: Boolean) {
+        _isSearchActive.value = active
+        savedStateHandle["is_search_active"] = active
+    }
+
+    fun setActiveScreenIndex(index: Int) {
+        _activeScreenIndex.value = index
+        FraisData.activeScreen = index
+    }
+
+    fun setNavigationMode(mode: com.khaled.frais.ui.NavigationMode) {
+        _navigationMode.value = mode
+        savedStateHandle["navigation_mode"] = mode
+    }
+
+    fun setSelectedGroup(group: GridItem.Group?) {
+        _selectedGroup.value = group
+    }
+
+    fun setSelectedAppForDialog(app: AppInfo?) {
+        _selectedAppForDialog.value = app
+    }
 
     private val _goHomeEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val goHomeEvent = _goHomeEvent.asSharedFlow()
@@ -89,7 +132,13 @@ class HomeViewModel : ViewModel() {
                     .map { info ->
                         async {
                             val label = info.loadLabel(packageManager).toString()
+                            val description = try {
+                                info.loadDescription(packageManager)?.toString()
+                            } catch (e: Exception) {
+                                null
+                            }
                             AppInfo(info, label).apply {
+                                this.description = description
                                 lastUsed = HUsage.getLastUsedTime(packageName, usageStats)
                                 usageTime = HUsage.getTotalForegroundTime(packageName, usageStats)
                                 installTime = HPackages.getFirstInstallTime(packageName)
@@ -226,8 +275,11 @@ class HomeViewModel : ViewModel() {
                 }
                 .sortedBy { it.lastUsed }
 
+        val protected = FraisData.closeAllProtectedApps
+        
         val actionableAppsCount =
-            apps.count { appInfo ->
+            (apps + games).count { appInfo ->
+                appInfo.packageName !in protected &&
                 !appInfo.isWhitelisted &&
                         appInfo.state != AppInfo.State.FROZEN &&
                         (!appInfo.isSystemApp || appInfo.isSafeToFreeze)
@@ -235,11 +287,67 @@ class HomeViewModel : ViewModel() {
 
         val actionablePrivateAppsCount =
             privateApps.count { appInfo ->
+                appInfo.packageName !in protected &&
+                !appInfo.isWhitelisted &&
                 appInfo.state != AppInfo.State.FROZEN
             }
 
         val totalUserAppsCount = allApps.count { !it.isSystemApp }
         val totalAppsCount = allApps.size
+
+        val runningServices = if (com.khaled.frais.app.AppManager.checkService()) {
+            com.khaled.frais.utils.HShizuku.getRunningServices()
+        } else emptyList()
+
+        val searchQuery = _uiState.value.searchQuery
+        val selectedFilters = _uiState.value.selectedFilters
+        val searchSystemFilter = _uiState.value.searchSystemFilter
+        val searchFrozenFilter = _uiState.value.searchFrozenFilter
+
+        val filteredApps = apps.filter { app ->
+            val matchesQuery = if (searchQuery.isEmpty()) true
+            else {
+                val categoryNames = app.tagIds.mapNotNull { id ->
+                    FraisData.tags.find { it.id == id }?.name
+                }.joinToString(" ")
+                val searchRaw = "${app.name} ${app.packageName} ${app.description ?: ""} $categoryNames"
+                com.khaled.frais.utils.FuzzySearch.search(searchRaw, searchQuery)
+            }
+            
+            val matchesFilters = if (searchQuery.isNotEmpty() || selectedFilters.isEmpty()) true
+            else selectedFilters.any { it in app.tagIds }
+
+            val matchesSystem = when (searchSystemFilter) {
+                "user" -> !app.isSystemApp
+                "system" -> app.isSystemApp
+                else -> true
+            }
+
+            val matchesFrozen = when (searchFrozenFilter) {
+                "frozen" -> app.state == AppInfo.State.FROZEN
+                "unfrozen" -> app.state == AppInfo.State.UNFROZEN
+                else -> true
+            }
+
+            matchesQuery && matchesFilters && matchesSystem && matchesFrozen
+        }
+
+        val pinnedApps = apps.filter { app ->
+            if (!app.pinned) return@filter false
+            if (searchQuery.isEmpty()) return@filter true
+            
+            val categoryNames = app.tagIds.mapNotNull { id ->
+                FraisData.tags.find { it.id == id }?.name
+            }.joinToString(" ")
+            val searchRaw = "${app.name} ${app.packageName} ${app.description ?: ""} $categoryNames"
+            com.khaled.frais.utils.FuzzySearch.search(searchRaw, searchQuery)
+        }
+
+        val mostUsed = if (selectedFilters.isEmpty() && searchQuery.isEmpty()) mostUsedApps else emptyList()
+        val otherApps = filteredApps.filter { it !in pinnedApps && !it.excludeMostUsed && it !in mostUsed }
+
+        val pinnedGridItems = calculateGridItems(pinnedApps, isPinned = true)
+        val mainGridItems = calculateGridItems(otherApps, isPinned = false)
 
         _uiState.update {
             it.copy(
@@ -268,12 +376,43 @@ class HomeViewModel : ViewModel() {
                 actionablePrivateAppsCount = actionablePrivateAppsCount,
                 totalUserAppsCount = totalUserAppsCount,
                 totalAppsCount = totalAppsCount,
+                runningServices = runningServices,
                 allApps = allApps,
                 mostUsedApps = sortApps(mostUsedApps, emptySet()),
                 hiddenApps = hiddenApps,
+                pinnedGridItems = pinnedGridItems,
+                mainGridItems = mainGridItems,
                 isInitialLoad = false
             )
         }
+    }
+
+    private fun calculateGridItems(apps: List<AppInfo>, isPinned: Boolean): List<GridItem> {
+        val list = mutableListOf<GridItem>()
+        val groups = apps.groupBy { app ->
+            app.tagIds.firstOrNull { it != FraisData.TAG_ID_MOST_USED } ?: FraisData.TAG_ID_OTHER
+        }
+        
+        val processedTags = mutableSetOf<Int>()
+        apps.forEach { app ->
+            val tagId = app.tagIds.firstOrNull { it != FraisData.TAG_ID_MOST_USED } ?: FraisData.TAG_ID_OTHER
+            if (tagId !in processedTags) {
+                val group = (groups[tagId] ?: emptyList()).sortedWith(
+                    compareByDescending<AppInfo> { it.state != AppInfo.State.FROZEN }
+                        .thenByDescending { it.usageTime }
+                        .thenBy { it.name.lowercase() }
+                )
+                if (group.size >= 2) {
+                    val gid = if (isPinned) "pinned_tag_$tagId" else "main_tag_$tagId"
+                    val tag = FraisData.tags.find { it.id == tagId }
+                    list.add(GridItem.Group(gid, group, tag?.name))
+                } else {
+                    group.forEach { list.add(GridItem.App(it)) }
+                }
+                processedTags.add(tagId)
+            }
+        }
+        return list
     }
 
     private fun sortApps(
@@ -295,6 +434,7 @@ class HomeViewModel : ViewModel() {
         _uiState.update {
             it.copy(searchQuery = query)
         }
+        savedStateHandle["search_query"] = query
     }
 
     fun setSearchSystemFilter(filter: String) {
@@ -412,8 +552,10 @@ class HomeViewModel : ViewModel() {
                     intent = context.packageManager.getLaunchIntentForPackage(packageName)
                     if (intent == null) delay(50)
                 }
-                intent?.let { context.startActivity(it) }
-                    ?: com.khaled.frais.utils.HUI.showToast(com.khaled.frais.R.string.activity_not_found)
+                intent?.let { 
+                    it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    context.startActivity(it) 
+                } ?: com.khaled.frais.utils.HUI.showToast(com.khaled.frais.R.string.activity_not_found)
             }
         }
     }

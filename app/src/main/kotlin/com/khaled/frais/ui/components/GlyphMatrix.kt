@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.SignalCellular0Bar
+import androidx.compose.material.icons.filled.SignalCellular4Bar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -680,13 +683,6 @@ private fun DrawScope.drawLightningEffect(
 
 /**
  * FRAIS Glyph Live Widget.
- *
- * IMPORTANT:
- * appCount MUST be the number of USER apps.
- * Do not pass the total including system apps.
- *
- * filterAppCount is the number of USER apps in the
- * currently selected filter.
  */
 @Composable
 fun GlyphLiveWidget(
@@ -701,8 +697,7 @@ fun GlyphLiveWidget(
     totalAppCount: Int = 0,
     totalFilterCount: Int = 0,
     filterAppCount: Int = appCount,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
     var state by remember {
         mutableStateOf(GlyphState.IDLE)
@@ -998,14 +993,6 @@ fun GlyphLiveWidget(
 
     /*
      * Count shown by the widget.
-     *
-     * This is ALWAYS a USER-APP count.
-     *
-     * When a filter is selected:
-     *     filterAppCount
-     *
-     * When no filter is selected:
-     *     appCount
      */
     val displayedCountValue = when {
         state == GlyphState.SECURED_ACTIVE -> actionablePrivateAppsCount
@@ -1029,7 +1016,6 @@ fun GlyphLiveWidget(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onClick() }
                     .padding(
                         horizontal = 14.dp,
                         vertical = 8.dp
@@ -1254,15 +1240,6 @@ fun GlyphLiveWidget(
 
                         if (actionableAppsCount > 0) {
 
-                            /*
-                             * ACTIVE APPS
-                             *
-                             * Instead of:
-                             * ● ACTIVE 03
-                             *
-                             * we make the status feel like
-                             * a small Nothing-style indicator.
-                             */
                             Row(
                                 verticalAlignment =
                                     Alignment.CenterVertically
@@ -1352,13 +1329,17 @@ fun StackedGlyphWidget(
 ) {
     var nextAlarm by remember { mutableStateOf<String?>(null) }
     var bluetoothDevices by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
+    var isMobileDataEnabled by remember { mutableStateOf(false) }
+    var isLocationEnabled by remember { mutableStateOf(false) }
 
     LaunchedEffect(isVisible) {
         if (isVisible) {
             while (true) {
                 nextAlarm = com.khaled.frais.utils.HSystemInfo.getNextAlarm()
                 bluetoothDevices = com.khaled.frais.utils.HSystemInfo.getBluetoothDevices()
-                delay(30000) // Refresh every 30 seconds while visible
+                isMobileDataEnabled = com.khaled.frais.utils.HSystemInfo.isMobileDataEnabled()
+                isLocationEnabled = com.khaled.frais.utils.HSystemInfo.isLocationEnabled()
+                delay(10000) // Refresh every 10 seconds while visible
             }
         }
     }
@@ -1370,7 +1351,7 @@ fun StackedGlyphWidget(
     ) {
         GlyphMatrix(
             modifier = Modifier.size(76.dp),
-            pattern = GlyphEngine.Patterns.EYES_OPEN, // Or a generic info pattern
+            pattern = GlyphEngine.Patterns.EYES_OPEN,
             accentColor = Color.White.copy(alpha = 0.6f)
         )
 
@@ -1381,63 +1362,92 @@ fun StackedGlyphWidget(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "SYSTEM STACK",
+                text = "SYSTEM STATUS",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.Gray,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            if (nextAlarm != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Alarm,
-                        null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "NEXT: $nextAlarm",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            } else {
+            // Alarm & Bluetooth Row
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Alarm,
+                    null,
+                    modifier = Modifier.size(12.dp),
+                    tint = if (nextAlarm != null) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.4f)
+                )
+                Spacer(Modifier.width(4.dp))
                 Text(
-                    text = "NO ALARMS SET",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray.copy(alpha = 0.5f)
+                    text = nextAlarm ?: "OFF",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = if (nextAlarm != null) Color.White else Color.Gray.copy(alpha = 0.4f)
+                )
+                
+                Spacer(Modifier.width(12.dp))
+                
+                Icon(
+                    Icons.Default.Bluetooth,
+                    null,
+                    modifier = Modifier.size(12.dp),
+                    tint = if (bluetoothDevices.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.4f)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = if (bluetoothDevices.isNotEmpty()) "${bluetoothDevices.size} DEV" else "OFF",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = if (bluetoothDevices.isNotEmpty()) Color.White else Color.Gray.copy(alpha = 0.4f)
                 )
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            if (bluetoothDevices.isNotEmpty()) {
-                val device = bluetoothDevices.first()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Bluetooth,
-                        null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "${device.first}: ${if (device.second >= 0) "${device.second}%" else "CONNECTED"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            } else {
+            // Mobile Data & Location Row
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (isMobileDataEnabled) Icons.Default.SignalCellular4Bar else Icons.Default.SignalCellular0Bar,
+                    null,
+                    modifier = Modifier.size(12.dp),
+                    tint = if (isMobileDataEnabled) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.4f)
+                )
+                Spacer(Modifier.width(4.dp))
                 Text(
-                    text = "NO DEVICES CONNECTED",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray.copy(alpha = 0.5f)
+                    text = if (isMobileDataEnabled) "DATA ON" else "DATA OFF",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = if (isMobileDataEnabled) Color.White else Color.Gray.copy(alpha = 0.4f)
+                )
+
+                Spacer(Modifier.width(12.dp))
+
+                Icon(
+                    Icons.Default.LocationOn,
+                    null,
+                    modifier = Modifier.size(12.dp),
+                    tint = if (isLocationEnabled) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.4f)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = if (isLocationEnabled) "GPS ON" else "GPS OFF",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = if (isLocationEnabled) Color.White else Color.Gray.copy(alpha = 0.4f)
+                )
+            }
+            
+            if (bluetoothDevices.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = bluetoothDevices.joinToString(", ") { it.first }.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 8.sp,
+                    color = Color.Gray,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
